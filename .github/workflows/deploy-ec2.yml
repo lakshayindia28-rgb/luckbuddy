@@ -102,6 +102,26 @@ jobs:
               echo "PROD_ENV secret is missing (should contain .env content)"; exit 1;
             fi
 
+            # ---- Seed SQLite database from repo (GitHub deploy) ----
+            # This imports deploy/seed/luckbuddy.db.b64 into the named volume luckbuddy_sqlite_data.
+            # Default behavior: seed only if /data/luckbuddy.db does NOT exist.
+            # To force overwrite: set FORCE_SEED_DB=true in PROD_ENV.
+            FORCE_SEED_DB=$(grep -E '^FORCE_SEED_DB=' .env 2>/dev/null | tail -n1 | cut -d= -f2- || true)
+            docker volume create luckbuddy_sqlite_data >/dev/null 2>&1 || true
+
+            if [ -f deploy/seed/luckbuddy.db.b64 ]; then
+              has_db=$(docker run --rm -v luckbuddy_sqlite_data:/data alpine sh -c 'test -f /data/luckbuddy.db && echo yes || echo no')
+              if [ "$has_db" = "no" ] || [ "${FORCE_SEED_DB:-}" = "true" ]; then
+                echo "Seeding SQLite DB into volume luckbuddy_sqlite_data (force=${FORCE_SEED_DB:-false})"
+                base64 -d deploy/seed/luckbuddy.db.b64 > /tmp/luckbuddy.db
+                docker run --rm -v luckbuddy_sqlite_data:/data -v /tmp:/tmp alpine sh -c 'cp /tmp/luckbuddy.db /data/luckbuddy.db'
+              else
+                echo "SQLite DB already exists in volume; skipping seed"
+              fi
+            else
+              echo "No deploy/seed/luckbuddy.db.b64 found; skipping seed"
+            fi
+
             docker compose build
             docker compose up -d
             docker compose ps

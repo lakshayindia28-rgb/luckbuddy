@@ -23,3 +23,4 @@ services:
 
 volumes:
   sqlite_data:
+    name: luckbuddy_sqlite_data

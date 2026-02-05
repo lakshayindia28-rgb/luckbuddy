@@ -63,6 +63,15 @@ Database note:
 - By default deployment uses **SQLite** stored in a Docker named volume (persistent across deploys).
 - You can optionally set `DATABASE_URL` if you later move to Postgres/RDS.
 
+### SQLite seed via GitHub deploy (private repo)
+This repo includes a base64 seed DB at:
+- `deploy/seed/luckbuddy.db.b64`
+
+Deploy workflow behavior:
+- If the Docker volume DB is missing, it will import the seed into volume `luckbuddy_sqlite_data`.
+- If the DB already exists, it will **NOT** overwrite by default.
+- To force overwrite (danger): set `FORCE_SEED_DB=true` in `PROD_ENV`.
+
 ### 3) Nginx config on EC2
 Copy the file from this repo:
 - `deploy/nginx/bhagylaxmi.in.conf`
