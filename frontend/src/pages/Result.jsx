@@ -32,16 +32,30 @@ export default function Result() {
           grouped[key] = {
             date,
             timeslot: r.timeslot,
-            values: {}
+            values: {},
+            _latest: {}
           };
         }
-        // Backend returns newest-first; keep the first value we see so latest wins.
-        if (grouped[key].values[r.serial] == null) {
-          grouped[key].values[r.serial] = r.winning_number;
+
+        // Keep latest value if duplicates exist.
+        const serial = r.serial;
+        const createdAt = r.created_at ? new Date(r.created_at).getTime() : 0;
+        const prevAt = grouped[key]._latest[serial] ?? -1;
+        if (grouped[key].values[serial] == null || createdAt >= prevAt) {
+          grouped[key].values[serial] = r.winning_number;
+          grouped[key]._latest[serial] = createdAt;
         }
       });
 
-      setRows(Object.values(grouped));
+      const next = Object.values(grouped)
+        .map(({ _latest, ...row }) => row)
+        .sort((a, b) => {
+          const d = String(b.date || "").localeCompare(String(a.date || ""));
+          if (d !== 0) return d;
+          return String(a.timeslot || "").localeCompare(String(b.timeslot || ""));
+        });
+
+      setRows(next);
     } catch {
       setRows([]);
     }

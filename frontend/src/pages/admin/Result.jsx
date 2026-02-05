@@ -5,7 +5,17 @@ export default function Result() {
   const [results, setResults] = useState([]);
 
   useEffect(() => {
-    api.get("/result/public").then(res => setResults(res.data));
+    api.get("/result/public").then(res => {
+      const rows = Array.isArray(res.data) ? res.data : [];
+      rows.sort((a, b) => {
+        const d = String(b.slot_date || "").localeCompare(String(a.slot_date || ""));
+        if (d !== 0) return d;
+        const t = String(a.timeslot || "").localeCompare(String(b.timeslot || ""));
+        if (t !== 0) return t;
+        return String(a.serial || "").localeCompare(String(b.serial || ""));
+      });
+      setResults(rows);
+    });
   }, []);
 
   return (

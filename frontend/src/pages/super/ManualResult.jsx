@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import DashboardLayout from "../../components/DashboardLayout";
-import { formatDDMMYY, parseDateToISO } from "../../utils/date";
+import { formatDDMMYY } from "../../utils/date";
 
 const SERIALS = ["XA", "XB", "XC", "XD", "XE", "XF", "XG", "XH", "XI", "XJ"];
 
@@ -16,8 +16,9 @@ function normalizeNumber(v) {
 
 export default function ManualResult() {
   const [slotDate, setSlotDate] = useState(() => new Date().toLocaleDateString("en-CA")); // ISO YYYY-MM-DD
-  const [slotDateText, setSlotDateText] = useState(() => formatDDMMYY(new Date().toLocaleDateString("en-CA")));
   const [timeslot, setTimeslot] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]); // [{timeslot, fully_published, published_count, total_serials, published_serials}]
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [numbers, setNumbers] = useState(() => {
     const map = {};
     SERIALS.forEach((s) => (map[s] = ""));
@@ -34,18 +35,96 @@ export default function ManualResult() {
         setTimeslot(res.data.timeslot || "");
         if (res.data.slot_date) {
           setSlotDate(res.data.slot_date);
-          setSlotDateText(formatDDMMYY(res.data.slot_date));
         }
       })
       .catch(() => setTimeslot(""));
   }, []);
+
+  // Fetch all 15-min timeslots for selected date
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) return;
+      try {
+        setSlotsLoading(true);
+        const res = await api.get("/result/timeslots", {
+          params: { slot_date: slotDate },
+        });
+        if (cancelled) return;
+        const items = res.data?.items || [];
+        setAvailableSlots(items);
+
+        // If timeslot is empty or not in the list, default it
+        const slots = items.map((x) => x.timeslot);
+        if (!timeslot || (slots.length && !slots.includes(timeslot))) {
+          setTimeslot(slots[0] || timeslot);
+        }
+      } catch {
+        if (cancelled) return;
+        setAvailableSlots([]);
+      } finally {
+        if (!cancelled) setSlotsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotDate]);
+
+  // Load existing published results for the selected slot (fills only empty inputs)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExisting = async () => {
+      if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) return;
+      if (!timeslot) return;
+
+      try {
+        const res = await api.get("/result/by-slot", {
+          params: { slot_date: slotDate, timeslot },
+        });
+        if (cancelled) return;
+
+        const items = res.data?.items || [];
+        if (!Array.isArray(items) || items.length === 0) return;
+
+        setNumbers((prev) => {
+          const next = { ...prev };
+          for (const r of items) {
+            const serial = r?.serial;
+            const win = r?.winning_number;
+            if (!serial || win == null) continue;
+            if (String(next[serial] || "").trim() !== "") continue; // don't overwrite
+            next[serial] = String(win);
+          }
+          return next;
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    loadExisting();
+    return () => {
+      cancelled = true;
+    };
+  }, [slotDate, timeslot]);
 
   const publishAll = async () => {
     setMsg("");
     setError("");
 
     if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
-      setError("Invalid Slot Date. Use DD/MM/YY");
+      setError("Invalid Slot Date. Use YYYY-MM-DD");
+      return;
+    }
+
+    if (!timeslot) {
+      setError("Please select a time slot");
       return;
     }
 
@@ -79,7 +158,7 @@ export default function ManualResult() {
         const failed = res.data?.failed || null;
         const okText = published.length ? `Published: ${published.join(", ")}` : "";
         const failText = failed ? `Failed: ${Object.keys(failed).join(", ")}` : "";
-        const dateText = slotDateText ? `Date: ${slotDateText}` : "";
+        const dateText = slotDate ? `Date: ${formatDDMMYY(slotDate)}` : "";
         setMsg([res.data?.message, dateText, okText, failText].filter(Boolean).join(" • ") || "Bulk publish completed");
       } catch (e) {
         if (e.response?.status === 404 || e.response?.status === 400) {
@@ -104,7 +183,7 @@ export default function ManualResult() {
 
         const okText = published.length ? `Published: ${published.join(", ")}` : "";
         const failText = Object.keys(failed).length ? `Failed: ${Object.keys(failed).join(", ")}` : "";
-        const dateText = slotDateText ? `Date: ${slotDateText}` : "";
+        const dateText = slotDate ? `Date: ${formatDDMMYY(slotDate)}` : "";
         setMsg([dateText, okText, failText].filter(Boolean).join(" • ") || "Publish completed");
       }
     } catch (err) {
@@ -128,27 +207,47 @@ export default function ManualResult() {
         {msg && <div className="alert alert-success">{msg}</div>}
         {error && <div className="alert alert-danger">{error}</div>}
 
-        <label className="mb-1">Time Slot</label>
-        <input className="form-control mb-3" value={timeslot} onChange={(e) => setTimeslot(e.target.value)} />
+        <div className="row g-2">
+          <div className="col-12 col-md-6">
+            <label className="mb-1">Slot Date</label>
+            <input
+              type="date"
+              className="form-control"
+              value={slotDate}
+              disabled={busy}
+              onChange={(e) => setSlotDate(e.target.value)}
+            />
+            <div className="text-muted mt-1" style={{ fontSize: 12 }}>
+              {slotDate ? `Selected: ${formatDDMMYY(slotDate)}` : ""}
+            </div>
+          </div>
 
-        <label className="mb-1">Slot Date (DD/MM/YY)</label>
-        <input
-          type="text"
-          className="form-control mb-3"
-          value={slotDateText}
-          placeholder="DD/MM/YY"
-          disabled={busy}
-          onChange={(e) => {
-            const txt = e.target.value;
-            setSlotDateText(txt);
-            const iso = parseDateToISO(txt);
-            if (iso) setSlotDate(iso);
-          }}
-          onBlur={() => {
-            const iso = parseDateToISO(slotDateText);
-            if (iso) setSlotDateText(formatDDMMYY(iso));
-          }}
-        />
+          <div className="col-12 col-md-6">
+            <label className="mb-1">Time Slot</label>
+            <select
+              className="form-select"
+              value={timeslot}
+              disabled={busy || slotsLoading}
+              onChange={(e) => setTimeslot(e.target.value)}
+            >
+              {(availableSlots.length ? availableSlots : [{ timeslot }])
+                .filter((x) => x?.timeslot)
+                .map((x) => {
+                  const label = x?.published_count != null && x?.total_serials != null
+                    ? `${x.timeslot} (${x.published_count}/${x.total_serials} published)`
+                    : x.timeslot;
+                  return (
+                    <option key={x.timeslot} value={x.timeslot}>
+                      {label}
+                    </option>
+                  );
+                })}
+            </select>
+            <div className="text-muted mt-1" style={{ fontSize: 12 }}>
+              {slotsLoading ? "Loading time slots..." : "15-minute slots for selected date"}
+            </div>
+          </div>
+        </div>
 
         <div className="row g-2">
           {SERIALS.map((s) => (

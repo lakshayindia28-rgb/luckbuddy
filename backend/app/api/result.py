@@ -8,10 +8,17 @@ from app.schemas.result import ManualResultRequest, ManualBulkResultRequest
 from app.models.ticket import Ticket
 from app.models.result import Result
 from app.services.pricing import compute_totals_for_tickets
-from app.utils.time_slots import current_timeslot as ist_current_timeslot, current_slot_date as ist_current_slot_date
+from app.utils.time_slots import (
+    current_timeslot as ist_current_timeslot,
+    current_slot_date as ist_current_slot_date,
+    timeslots_for_date as ist_timeslots_for_date,
+)
 from app.utils.validators import validate_number, validate_serial
 
 router = APIRouter(prefix="/result", tags=["Result"])
+
+
+SERIALS: list[str] = ["XA", "XB", "XC", "XD", "XE", "XF", "XG", "XH", "XI", "XJ"]
 
 
 # ======================================================
@@ -238,7 +245,14 @@ def public_results(
             raise HTTPException(400, "Invalid to_date format")
         q = q.filter(Result.slot_date <= to_date)
 
-    return q.order_by(Result.slot_date.desc().nullslast(), Result.created_at.desc()).all()
+    # Return with latest dates first, but ordered slots within the date.
+    # (So publishing later doesn't reshuffle the list by created_at)
+    return q.order_by(
+        Result.slot_date.desc().nullslast(),
+        Result.timeslot.asc().nullslast(),
+        Result.serial.asc().nullslast(),
+        Result.created_at.desc().nullslast(),
+    ).all()
 
 
 # ======================================================
@@ -265,4 +279,119 @@ def filter_results(
     if timeslot:
         query = query.filter(Result.timeslot == timeslot)
 
-    return query.order_by(Result.created_at.desc()).all()
+    return query.order_by(
+        Result.slot_date.desc().nullslast(),
+        Result.timeslot.asc().nullslast(),
+        Result.serial.asc().nullslast(),
+        Result.created_at.desc().nullslast(),
+    ).all()
+
+
+# ======================================================
+# TIMESLOT LIST FOR DATE (ADMIN / SUPER)
+# ======================================================
+@router.get(
+    "/timeslots",
+    dependencies=[Depends(get_current_user(["admin", "super"]))],
+)
+def timeslots_for_date(
+    slot_date: str,
+    db: Session = Depends(get_db),
+):
+    """Return all 15-min slots for the given IST date, along with publish summary.
+
+    The UI needs to show every slot for a date (played or not), and allow manual
+    publishing for any slot.
+    """
+
+    # Validate format early
+    try:
+        slot_date_iso = datetime.strptime(slot_date, "%Y-%m-%d").date().isoformat()
+    except Exception:
+        raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
+
+    slots = ist_timeslots_for_date(slot_date_iso)
+
+    # Build a per-timeslot published serial set.
+    published_rows = (
+        db.query(Result.timeslot, Result.serial)
+        .filter(
+            Result.slot_date == slot_date_iso,
+            Result.published == True,
+        )
+        .all()
+    )
+
+    published_map: dict[str, set[str]] = {}
+    for ts, serial in published_rows:
+        if not ts:
+            continue
+        published_map.setdefault(ts, set()).add(serial)
+
+    items = []
+    for ts in slots:
+        published_serials = sorted(list(published_map.get(ts, set())))
+        items.append(
+            {
+                "timeslot": ts,
+                "slot_date": slot_date_iso,
+                "published_count": len(published_serials),
+                "total_serials": len(SERIALS),
+                "fully_published": len(published_serials) == len(SERIALS),
+                "published_serials": published_serials,
+            }
+        )
+
+    return {
+        "slot_date": slot_date_iso,
+        "timezone": "Asia/Kolkata",
+        "minutes": 15,
+        "items": items,
+    }
+
+
+# ======================================================
+# EXISTING RESULTS FOR A SLOT (ADMIN / SUPER)
+# ======================================================
+@router.get(
+    "/by-slot",
+    dependencies=[Depends(get_current_user(["admin", "super"]))],
+)
+def results_by_slot(
+    slot_date: str,
+    timeslot: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        slot_date_iso = datetime.strptime(slot_date, "%Y-%m-%d").date().isoformat()
+    except Exception:
+        raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
+
+    ts = (timeslot or "").strip()
+    if not ts:
+        raise HTTPException(400, "timeslot is required")
+
+    rows = (
+        db.query(Result)
+        .filter(
+            Result.slot_date == slot_date_iso,
+            Result.timeslot == ts,
+            Result.published == True,
+        )
+        .order_by(Result.serial.asc())
+        .all()
+    )
+
+    return {
+        "slot_date": slot_date_iso,
+        "timeslot": ts,
+        "items": [
+            {
+                "serial": r.serial,
+                "winning_number": r.winning_number,
+                "is_manual": r.is_manual,
+                "created_at": r.created_at,
+            }
+            for r in rows
+        ],
+    }
