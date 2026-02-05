@@ -15,14 +15,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate required secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          APP_DIR: ${{ secrets.APP_DIR }}
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          [ -z "${SSH_HOST:-}" ] && echo "Missing required secret: SSH_HOST" && missing=1
+          [ -z "${SSH_USER:-}" ] && echo "Missing required secret: SSH_USER" && missing=1
+          [ -z "${SSH_PRIVATE_KEY:-}" ] && echo "Missing required secret: SSH_PRIVATE_KEY" && missing=1
+          [ -z "${APP_DIR:-}" ] && echo "Missing required secret: APP_DIR" && missing=1
+          [ -z "${PROD_ENV:-}" ] && echo "Missing required secret: PROD_ENV" && missing=1
+          if [ "$missing" -ne 0 ]; then
+            echo "Add secrets in GitHub: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
       - name: Setup SSH key
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
-          printf "%s" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          # Normalize CRLF just in case the secret was pasted from Windows.
+          printf "%s" "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p ${{ secrets.SSH_PORT || 22 }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.SSH_PORT || 22 }} -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Ensure app directory exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -p ${{ secrets.SSH_PORT || 22 }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p '${{ secrets.APP_DIR }}'"
 
       - name: Upload project to EC2 (rsync)
         shell: bash
