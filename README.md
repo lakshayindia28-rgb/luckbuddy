@@ -41,6 +41,7 @@ Install Nginx + TLS:
 ```bash
 sudo apt-get install -y nginx
 sudo apt-get install -y certbot python3-certbot-nginx
+sudo apt-get install -y ssl-cert
 ```
 ```
 
@@ -75,12 +76,21 @@ Deploy workflow behavior:
 ### 3) Nginx config on EC2
 Copy the file from this repo:
 - `deploy/nginx/bhagylaxmi.in.conf`
+- `deploy/nginx/ip-default.conf` (blocks direct IP access)
 
 On EC2:
 
 ```bash
 sudo cp /home/ubuntu/apps/luckbuddy/deploy/nginx/bhagylaxmi.in.conf /etc/nginx/sites-available/bhagylaxmi.in
 sudo ln -sf /etc/nginx/sites-available/bhagylaxmi.in /etc/nginx/sites-enabled/bhagylaxmi.in
+
+# Block direct IP access (default vhost)
+sudo cp /home/ubuntu/apps/luckbuddy/deploy/nginx/ip-default.conf /etc/nginx/sites-available/ip-default
+sudo ln -sf /etc/nginx/sites-available/ip-default /etc/nginx/sites-enabled/ip-default
+
+# Disable the Ubuntu default site if enabled
+sudo rm -f /etc/nginx/sites-enabled/default
+
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -135,3 +145,7 @@ npm install
 echo 'VITE_API_BASE_URL=http://localhost:8000' > .env
 npm run dev -- --host 0.0.0.0 --port 5173
 ```
+
+Production note:
+- Do NOT set `VITE_API_BASE_URL` to an `http://...` URL on production builds, otherwise the HTTPS site may load insecure resources (mixed content).
+- In production, prefer leaving it unset so the frontend uses the same-origin `/api` reverse proxy.
