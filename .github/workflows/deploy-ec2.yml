@@ -1,0 +1,79 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ "main" ]
+
+concurrency:
+  group: deploy-ec2-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf "%s" "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p ${{ secrets.SSH_PORT || 22 }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload project to EC2 (rsync)
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_DIR='${{ secrets.APP_DIR }}'
+          if [ -z "$APP_DIR" ]; then echo "APP_DIR secret required"; exit 1; fi
+
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude 'frontend/node_modules/' \
+            --exclude 'backend/.venv/' \
+            --exclude '**/__pycache__/' \
+            --exclude '*.db' \
+            -e "ssh -p ${{ secrets.SSH_PORT || 22 }}" \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:"$APP_DIR"/
+
+      - name: Deploy on EC2 (Docker Compose)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+
+            APP_DIR='${{ secrets.APP_DIR }}'
+            if [ -z "$APP_DIR" ]; then
+              echo "APP_DIR secret is required"; exit 1;
+            fi
+
+            # Install Docker Engine + compose plugin if missing
+            if ! command -v docker >/dev/null 2>&1; then
+              curl -fsSL https://get.docker.com | sudo sh
+              sudo usermod -aG docker $USER || true
+            fi
+            if ! docker compose version >/dev/null 2>&1; then
+              sudo apt-get update -y
+              sudo apt-get install -y docker-compose-plugin
+            fi
+
+            cd "$APP_DIR"
+
+            # Write .env from GitHub secret
+            if [ -n "${{ secrets.PROD_ENV || '' }}" ]; then
+              printf "%s" "${{ secrets.PROD_ENV }}" > .env
+            else
+              echo "PROD_ENV secret is missing (should contain .env content)"; exit 1;
+            fi
+
+            docker compose build
+            docker compose up -d
+            docker compose ps

@@ -1,0 +1,2 @@
+# Deprecated: This repo now deploys with Nginx on the EC2 host.
+# See: deploy/nginx/bhagylaxmi.in.conf

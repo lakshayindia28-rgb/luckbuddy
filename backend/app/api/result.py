@@ -1,0 +1,262 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from datetime import datetime, date
+
+from app.database.session import get_db
+from app.middleware.auth import get_current_user
+from app.schemas.result import ManualResultRequest, ManualBulkResultRequest
+from app.models.ticket import Ticket
+from app.models.result import Result
+from app.services.pricing import compute_totals_for_tickets
+from app.utils.validators import validate_number, validate_serial
+
+router = APIRouter(prefix="/result", tags=["Result"])
+
+
+# ======================================================
+# CURRENT TIMESLOT (single source of truth)
+# ======================================================
+@router.get("/current-timeslot")
+def current_timeslot():
+    now = datetime.now()
+    start = (now.minute // 15) * 15
+    end = start + 15
+
+    return {
+        "timeslot": f"{now.hour:02d}:{start:02d}-{now.hour:02d}:{end:02d}"
+    }
+
+
+# ======================================================
+# MANUAL RESULT (ADMIN / SUPER)
+# ======================================================
+@router.post(
+    "/manual",
+    dependencies=[Depends(get_current_user(["admin", "super"]))]
+)
+def manual_result(
+    data: ManualResultRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        validate_serial(data.serial)
+        validate_number(int(data.winning_number))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    # Validate slot_date format
+    try:
+        slot_date = datetime.strptime(data.slot_date, "%Y-%m-%d").date().isoformat()
+    except Exception:
+        raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
+
+    tickets = db.query(Ticket).filter(
+        Ticket.serial == data.serial,
+        Ticket.timeslot == data.timeslot,
+        Ticket.slot_date == slot_date,
+        Ticket.locked == True
+    ).all()
+
+    if tickets:
+        total_points, total_amount = compute_totals_for_tickets(db, tickets)
+    else:
+        total_points, total_amount = 0, 0
+
+    admin_cut = int(total_amount * 0.4)
+    payout = total_amount - admin_cut
+
+    existing = db.query(Result).filter(
+        Result.serial == data.serial,
+        Result.timeslot == data.timeslot,
+        Result.slot_date == slot_date,
+        Result.published == True
+    ).first()
+
+    if existing:
+        existing.winning_number = int(data.winning_number)
+        existing.total_points = total_points
+        existing.total_amount = total_amount
+        existing.payout_amount = payout
+        existing.admin_amount = admin_cut
+        existing.is_manual = True
+        existing.published = True
+        existing.created_at = datetime.utcnow()
+    else:
+        result = Result(
+            serial=data.serial,
+            timeslot=data.timeslot,
+            slot_date=slot_date,
+            winning_number=int(data.winning_number),
+            total_points=total_points,
+            total_amount=total_amount,
+            payout_amount=payout,
+            admin_amount=admin_cut,
+            is_manual=True,
+            published=True,
+            created_at=datetime.utcnow()
+        )
+        db.add(result)
+
+    db.commit()
+
+    return {
+        "message": "Result published successfully",
+        "serial": data.serial,
+        "timeslot": data.timeslot
+    }
+
+
+# ======================================================
+# MANUAL RESULT BULK (ADMIN / SUPER)
+# ======================================================
+@router.post(
+    "/manual-bulk",
+    dependencies=[Depends(get_current_user(["admin", "super"]))]
+)
+def manual_result_bulk(
+    data: ManualBulkResultRequest,
+    db: Session = Depends(get_db)
+):
+    if not data.results:
+        raise HTTPException(400, "No results provided")
+
+    try:
+        slot_date = datetime.strptime(data.slot_date, "%Y-%m-%d").date().isoformat()
+    except Exception:
+        raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
+
+    published: list[str] = []
+    failed: dict[str, str] = {}
+
+    for item in data.results:
+        serial = (item.serial or "").strip()
+
+        try:
+            validate_serial(serial)
+            validate_number(int(item.winning_number))
+        except ValueError as e:
+            failed[serial or "(empty)"] = str(e)
+            continue
+
+        tickets = db.query(Ticket).filter(
+            Ticket.serial == serial,
+            Ticket.timeslot == data.timeslot,
+            Ticket.slot_date == slot_date,
+            Ticket.locked == True
+        ).all()
+
+        if tickets:
+            total_points, total_amount = compute_totals_for_tickets(db, tickets)
+        else:
+            total_points, total_amount = 0, 0
+        admin_cut = int(total_amount * 0.4)
+        payout = total_amount - admin_cut
+
+        existing = db.query(Result).filter(
+            Result.serial == serial,
+            Result.timeslot == data.timeslot,
+            Result.slot_date == slot_date,
+            Result.published == True
+        ).first()
+
+        if existing:
+            existing.winning_number = int(item.winning_number)
+            existing.total_points = total_points
+            existing.total_amount = total_amount
+            existing.payout_amount = payout
+            existing.admin_amount = admin_cut
+            existing.is_manual = True
+            existing.published = True
+            existing.slot_date = slot_date
+            existing.created_at = datetime.utcnow()
+        else:
+            db.add(
+                Result(
+                    serial=serial,
+                    timeslot=data.timeslot,
+                    slot_date=slot_date,
+                    winning_number=int(item.winning_number),
+                    total_points=total_points,
+                    total_amount=total_amount,
+                    payout_amount=payout,
+                    admin_amount=admin_cut,
+                    is_manual=True,
+                    published=True,
+                    created_at=datetime.utcnow()
+                )
+            )
+
+        published.append(serial)
+
+    if not published:
+        raise HTTPException(400, failed or "No valid results provided")
+
+    db.commit()
+
+    return {
+        "message": "Bulk publish completed",
+        "timeslot": data.timeslot,
+        "slot_date": slot_date,
+        "published": published,
+        "failed": failed or None,
+    }
+
+
+# ================= PUBLIC RESULTS =================
+@router.get("/public")
+def public_results(
+    date: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    db: Session = Depends(get_db)
+):
+    q = db.query(Result).filter(Result.published == True)
+
+    # Backward-compatible single-date filter
+    if date and not (from_date or to_date):
+        from_date = date
+        to_date = date
+
+    # Prefer filtering by slot_date (the day this slot belongs to)
+    if from_date:
+        try:
+            datetime.strptime(from_date, "%Y-%m-%d")
+        except Exception:
+            raise HTTPException(400, "Invalid from_date format")
+        q = q.filter(Result.slot_date >= from_date)
+
+    if to_date:
+        try:
+            datetime.strptime(to_date, "%Y-%m-%d")
+        except Exception:
+            raise HTTPException(400, "Invalid to_date format")
+        q = q.filter(Result.slot_date <= to_date)
+
+    return q.order_by(Result.slot_date.desc().nullslast(), Result.created_at.desc()).all()
+
+
+# ======================================================
+# FILTER RESULTS (DATE / TIMESLOT)
+# ======================================================
+@router.get("/filter")
+def filter_results(
+    date_str: str | None = None,
+    timeslot: str | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Result).filter(Result.published == True)
+
+    if date_str:
+        try:
+            selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            query = query.filter(
+                Result.created_at >= datetime.combine(selected_date, datetime.min.time()),
+                Result.created_at <= datetime.combine(selected_date, datetime.max.time())
+            )
+        except:
+            raise HTTPException(400, "Invalid date format")
+
+    if timeslot:
+        query = query.filter(Result.timeslot == timeslot)
+
+    return query.order_by(Result.created_at.desc()).all()

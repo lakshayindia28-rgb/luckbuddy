@@ -1,0 +1,156 @@
+/* ========== GLOBAL RESET ========== */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  background: #0f172a; /* dark navy */
+  color: #e5e7eb;
+}
+
+/* ========== COMMON ========== */
+a {
+  text-decoration: none;
+}
+
+.page-wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a, #020617);
+}
+
+/* ========== HEADER ========== */
+.app-header {
+  height: 64px;
+  background: #020617;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.app-header h4 {
+  margin: 0;
+  color: #38bdf8;
+  letter-spacing: 1px;
+}
+
+/* ========== SIDEBAR ========== */
+.sidebar {
+  width: 240px;
+  background: #020617;
+  border-right: 1px solid #1e293b;
+  padding: 20px;
+}
+
+.sidebar h6 {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+
+.sidebar a {
+  display: block;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #e5e7eb;
+  margin-bottom: 8px;
+  transition: 0.2s;
+}
+
+.sidebar a:hover {
+  background: #1e293b;
+  color: #38bdf8;
+}
+
+/* ========== CONTENT ========== */
+.dashboard-content {
+  flex: 1;
+  padding: 30px;
+  background: #020617;
+}
+
+/* ========== CARDS ========== */
+.card-box {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.card-box h5 {
+  color: #38bdf8;
+  margin-bottom: 15px;
+}
+
+/* ========== BUTTONS ========== */
+.btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #2563eb);
+  border: none;
+  color: #020617;
+  font-weight: 600;
+}
+
+.btn-danger {
+  background: #ef4444;
+  border: none;
+}
+
+/* ========== INPUTS ========== */
+.form-control,
+textarea {
+  background: #020617;
+  border: 1px solid #1e293b;
+  color: #e5e7eb;
+}
+
+.form-control::placeholder {
+  color: #64748b;
+}
+
+.form-control:focus {
+  background: #020617;
+  color: white;
+  border-color: #38bdf8;
+  box-shadow: none;
+}
+
+/* ========== NOTIFICATION ========== */
+.notification-banner {
+  background: linear-gradient(135deg, #facc15, #eab308);
+  color: #020617;
+  font-weight: 600;
+  padding: 12px;
+  border-radius: 10px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+/* GAME BLINK EFFECT */
+@keyframes glow {
+  0% { box-shadow: 0 0 6px rgba(56,189,248,0.3); }
+  50% { box-shadow: 0 0 14px rgba(56,189,248,0.6); }
+  100% { box-shadow: 0 0 6px rgba(56,189,248,0.3); }
+}
+
+.card-box:hover {
+  animation: glow 1.5s infinite;
+}
+
+/* STATUS COLORS */
+h6 {
+  color: #94a3b8;
+  font-size: 13px;
+}
+.table-dark {
+  --bs-table-bg: #020617;
+  --bs-table-border-color: #1e293b;
+}
+
+.table th {
+  color: #38bdf8;
+  font-weight: 600;
+}
