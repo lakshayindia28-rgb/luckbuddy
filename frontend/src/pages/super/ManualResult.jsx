@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import DashboardLayout from "../../components/DashboardLayout";
+import { formatDDMMYY, parseDateToISO } from "../../utils/date";
 
 const SERIALS = ["XA", "XB", "XC", "XD", "XE", "XF", "XG", "XH", "XI", "XJ"];
 
@@ -14,10 +15,8 @@ function normalizeNumber(v) {
 }
 
 export default function ManualResult() {
-  const [slotDate, setSlotDate] = useState(() => {
-    // Use browser-local date (YYYY-MM-DD). Avoid UTC-based toISOString() which can shift day.
-    return new Date().toLocaleDateString("en-CA");
-  });
+  const [slotDate, setSlotDate] = useState(() => new Date().toLocaleDateString("en-CA")); // ISO YYYY-MM-DD
+  const [slotDateText, setSlotDateText] = useState(() => formatDDMMYY(new Date().toLocaleDateString("en-CA")));
   const [timeslot, setTimeslot] = useState("");
   const [numbers, setNumbers] = useState(() => {
     const map = {};
@@ -28,12 +27,15 @@ export default function ManualResult() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // 🔹 Auto-fetch same timeslot as vendor
   useEffect(() => {
-    api.get("/result/current-timeslot")
+    api
+      .get("/result/current-timeslot")
       .then((res) => {
         setTimeslot(res.data.timeslot || "");
-        if (res.data.slot_date) setSlotDate(res.data.slot_date);
+        if (res.data.slot_date) {
+          setSlotDate(res.data.slot_date);
+          setSlotDateText(formatDDMMYY(res.data.slot_date));
+        }
       })
       .catch(() => setTimeslot(""));
   }, []);
@@ -41,6 +43,11 @@ export default function ManualResult() {
   const publishAll = async () => {
     setMsg("");
     setError("");
+
+    if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
+      setError("Invalid Slot Date. Use DD/MM/YY");
+      return;
+    }
 
     const payload = SERIALS
       .map((serial) => ({ serial, n: normalizeNumber(numbers[serial]) }))
@@ -61,21 +68,20 @@ export default function ManualResult() {
     try {
       setBusy(true);
 
-      // Prefer the bulk API (new)
       try {
         const res = await api.post("/result/manual-bulk", {
           timeslot,
           slot_date: slotDate,
-          results: payload.map((x) => ({ serial: x.serial, winning_number: x.n }))
+          results: payload.map((x) => ({ serial: x.serial, winning_number: x.n })),
         });
 
         const published = res.data?.published || [];
         const failed = res.data?.failed || null;
         const okText = published.length ? `Published: ${published.join(", ")}` : "";
         const failText = failed ? `Failed: ${Object.keys(failed).join(", ")}` : "";
-        setMsg([res.data?.message, okText, failText].filter(Boolean).join(" • ") || "Bulk publish completed");
+        const dateText = slotDateText ? `Date: ${slotDateText}` : "";
+        setMsg([res.data?.message, dateText, okText, failText].filter(Boolean).join(" • ") || "Bulk publish completed");
       } catch (e) {
-        // Fallback: older backend - publish one-by-one but keep one-click UX
         if (e.response?.status === 404 || e.response?.status === 400) {
           throw e;
         }
@@ -88,21 +94,21 @@ export default function ManualResult() {
               serial: x.serial,
               timeslot,
               slot_date: slotDate,
-              winning_number: x.n
+              winning_number: x.n,
             });
             published.push(x.serial);
           } catch (err) {
             failed[x.serial] = err.response?.data?.detail || "Failed";
           }
         }
+
         const okText = published.length ? `Published: ${published.join(", ")}` : "";
         const failText = Object.keys(failed).length ? `Failed: ${Object.keys(failed).join(", ")}` : "";
-        setMsg([okText, failText].filter(Boolean).join(" • ") || "Publish completed");
+        const dateText = slotDateText ? `Date: ${slotDateText}` : "";
+        setMsg([dateText, okText, failText].filter(Boolean).join(" • ") || "Publish completed");
       }
     } catch (err) {
-      setError(
-        err.response?.data?.detail || "Failed to publish result"
-      );
+      setError(err.response?.data?.detail || "Failed to publish result");
     } finally {
       setBusy(false);
     }
@@ -117,26 +123,31 @@ export default function ManualResult() {
   return (
     <DashboardLayout>
       <div className="card p-4" style={{ maxWidth: 720 }}>
-
         <h4 className="mb-3">Manual Result Upload</h4>
 
         {msg && <div className="alert alert-success">{msg}</div>}
         {error && <div className="alert alert-danger">{error}</div>}
 
         <label className="mb-1">Time Slot</label>
-        <input
-          className="form-control mb-3"
-          value={timeslot}
-          onChange={(e) => setTimeslot(e.target.value)}
-        />
+        <input className="form-control mb-3" value={timeslot} onChange={(e) => setTimeslot(e.target.value)} />
 
-        <label className="mb-1">Slot Date</label>
+        <label className="mb-1">Slot Date (DD/MM/YY)</label>
         <input
-          type="date"
+          type="text"
           className="form-control mb-3"
-          value={slotDate}
-          onChange={(e) => setSlotDate(e.target.value)}
+          value={slotDateText}
+          placeholder="DD/MM/YY"
           disabled={busy}
+          onChange={(e) => {
+            const txt = e.target.value;
+            setSlotDateText(txt);
+            const iso = parseDateToISO(txt);
+            if (iso) setSlotDate(iso);
+          }}
+          onBlur={() => {
+            const iso = parseDateToISO(slotDateText);
+            if (iso) setSlotDateText(formatDDMMYY(iso));
+          }}
         />
 
         <div className="row g-2">
@@ -154,7 +165,7 @@ export default function ManualResult() {
                 onChange={(e) =>
                   setNumbers((prev) => ({
                     ...prev,
-                    [s]: e.target.value
+                    [s]: e.target.value,
                   }))
                 }
               />
@@ -170,7 +181,6 @@ export default function ManualResult() {
             Clear
           </button>
         </div>
-
       </div>
     </DashboardLayout>
   );

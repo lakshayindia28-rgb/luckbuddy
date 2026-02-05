@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import "../styles/result.css";
+import { formatDDMMYY } from "../utils/date";
 
 const SERIALS = ["XA","XB","XC","XD","XE","XF","XG","XH","XI","XJ"];
 
@@ -99,7 +100,7 @@ export default function Result() {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i}>
-                  <td>{row.date}</td>
+                  <td>{formatDDMMYY(row.date)}</td>
                   <td>{row.timeslot}</td>
                   {SERIALS.map(s => (
                     <td key={s} className="result-cell">
