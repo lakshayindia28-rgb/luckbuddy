@@ -5,8 +5,7 @@ from app.database.session import get_db
 from app.middleware.auth import get_current_user
 from app.models.ticket import Ticket
 from app.schemas.ticket import PlayGameRequest
-from app.utils.time_slots import current_timeslot
-from datetime import date
+from app.utils.time_slots import current_timeslot, current_slot_date
 from app.utils.validators import validate_number, validate_serial
 from app.services.pricing import build_digit_price_map, get_digit_price
 
@@ -25,7 +24,7 @@ def play_game(data: PlayGameRequest, request: Request, db: Session = Depends(get
         vendor_username = data.forced_vendor
 
     slot = current_timeslot()
-    slot_date = date.today().isoformat()
+    slot_date = current_slot_date()
 
     exists = db.query(Ticket).filter_by(
         vendor_username=vendor_username,
@@ -78,7 +77,7 @@ def my_tickets(
     vendor_username = user["username"]
 
     # Vendor dashboard should only show today's data by default.
-    slot_date = slot_date or date.today().isoformat()
+    slot_date = slot_date or current_slot_date()
 
     q = db.query(Ticket).filter(
         Ticket.vendor_username == vendor_username,

@@ -4,7 +4,7 @@ import random
 
 from app.models.ticket import Ticket
 from app.models.result import Result
-from app.utils.time_slots import current_timeslot
+from app.utils.time_slots import current_timeslot, current_slot_date
 from app.services.pricing import compute_totals_for_tickets
 
 
@@ -14,7 +14,7 @@ def generate_auto_result(db: Session, serial: str):
     """
 
     timeslot = current_timeslot()
-    slot_date = date.today().isoformat()
+    slot_date = current_slot_date()
 
     existing = db.query(Result).filter(
         Result.serial == serial,

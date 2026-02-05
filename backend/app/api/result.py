@@ -8,6 +8,7 @@ from app.schemas.result import ManualResultRequest, ManualBulkResultRequest
 from app.models.ticket import Ticket
 from app.models.result import Result
 from app.services.pricing import compute_totals_for_tickets
+from app.utils.time_slots import current_timeslot as ist_current_timeslot, current_slot_date as ist_current_slot_date
 from app.utils.validators import validate_number, validate_serial
 
 router = APIRouter(prefix="/result", tags=["Result"])
@@ -18,12 +19,10 @@ router = APIRouter(prefix="/result", tags=["Result"])
 # ======================================================
 @router.get("/current-timeslot")
 def current_timeslot():
-    now = datetime.now()
-    start = (now.minute // 15) * 15
-    end = start + 15
-
     return {
-        "timeslot": f"{now.hour:02d}:{start:02d}-{now.hour:02d}:{end:02d}"
+        "timeslot": ist_current_timeslot(),
+        "slot_date": ist_current_slot_date(),
+        "timezone": "Asia/Kolkata",
     }
 
 
@@ -44,15 +43,18 @@ def manual_result(
     except ValueError as e:
         raise HTTPException(400, str(e))
 
+    timeslot = (getattr(data, "timeslot", None) or "").strip() or ist_current_timeslot()
+    slot_date_raw = (getattr(data, "slot_date", None) or "").strip() or ist_current_slot_date()
+
     # Validate slot_date format
     try:
-        slot_date = datetime.strptime(data.slot_date, "%Y-%m-%d").date().isoformat()
+        slot_date = datetime.strptime(slot_date_raw, "%Y-%m-%d").date().isoformat()
     except Exception:
         raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
 
     tickets = db.query(Ticket).filter(
         Ticket.serial == data.serial,
-        Ticket.timeslot == data.timeslot,
+        Ticket.timeslot == timeslot,
         Ticket.slot_date == slot_date,
         Ticket.locked == True
     ).all()
@@ -67,7 +69,7 @@ def manual_result(
 
     existing = db.query(Result).filter(
         Result.serial == data.serial,
-        Result.timeslot == data.timeslot,
+        Result.timeslot == timeslot,
         Result.slot_date == slot_date,
         Result.published == True
     ).first()
@@ -84,7 +86,7 @@ def manual_result(
     else:
         result = Result(
             serial=data.serial,
-            timeslot=data.timeslot,
+            timeslot=timeslot,
             slot_date=slot_date,
             winning_number=int(data.winning_number),
             total_points=total_points,
@@ -102,7 +104,8 @@ def manual_result(
     return {
         "message": "Result published successfully",
         "serial": data.serial,
-        "timeslot": data.timeslot
+        "timeslot": timeslot,
+        "slot_date": slot_date,
     }
 
 
@@ -120,8 +123,11 @@ def manual_result_bulk(
     if not data.results:
         raise HTTPException(400, "No results provided")
 
+    timeslot = (getattr(data, "timeslot", None) or "").strip() or ist_current_timeslot()
+    slot_date_raw = (getattr(data, "slot_date", None) or "").strip() or ist_current_slot_date()
+
     try:
-        slot_date = datetime.strptime(data.slot_date, "%Y-%m-%d").date().isoformat()
+        slot_date = datetime.strptime(slot_date_raw, "%Y-%m-%d").date().isoformat()
     except Exception:
         raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
 
@@ -140,7 +146,7 @@ def manual_result_bulk(
 
         tickets = db.query(Ticket).filter(
             Ticket.serial == serial,
-            Ticket.timeslot == data.timeslot,
+            Ticket.timeslot == timeslot,
             Ticket.slot_date == slot_date,
             Ticket.locked == True
         ).all()
@@ -154,7 +160,7 @@ def manual_result_bulk(
 
         existing = db.query(Result).filter(
             Result.serial == serial,
-            Result.timeslot == data.timeslot,
+            Result.timeslot == timeslot,
             Result.slot_date == slot_date,
             Result.published == True
         ).first()
@@ -173,7 +179,7 @@ def manual_result_bulk(
             db.add(
                 Result(
                     serial=serial,
-                    timeslot=data.timeslot,
+                    timeslot=timeslot,
                     slot_date=slot_date,
                     winning_number=int(item.winning_number),
                     total_points=total_points,
@@ -195,7 +201,7 @@ def manual_result_bulk(
 
     return {
         "message": "Bulk publish completed",
-        "timeslot": data.timeslot,
+        "timeslot": timeslot,
         "slot_date": slot_date,
         "published": published,
         "failed": failed or None,

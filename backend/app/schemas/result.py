@@ -3,8 +3,8 @@ from typing import List, Optional
 
 class ManualResultRequest(BaseModel):
     serial: str           # XA
-    timeslot: str
-    slot_date: str        # YYYY-MM-DD
+    timeslot: Optional[str] = None
+    slot_date: Optional[str] = None        # YYYY-MM-DD
     winning_number: int   # 0–99
 
 
@@ -14,8 +14,8 @@ class ManualResultItem(BaseModel):
 
 
 class ManualBulkResultRequest(BaseModel):
-    timeslot: str
-    slot_date: str
+    timeslot: Optional[str] = None
+    slot_date: Optional[str] = None
     results: List[ManualResultItem]
 
 

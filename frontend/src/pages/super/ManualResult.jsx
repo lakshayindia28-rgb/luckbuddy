@@ -15,8 +15,8 @@ function normalizeNumber(v) {
 
 export default function ManualResult() {
   const [slotDate, setSlotDate] = useState(() => {
-    const d = new Date();
-    return d.toISOString().slice(0, 10);
+    // Use browser-local date (YYYY-MM-DD). Avoid UTC-based toISOString() which can shift day.
+    return new Date().toLocaleDateString("en-CA");
   });
   const [timeslot, setTimeslot] = useState("");
   const [numbers, setNumbers] = useState(() => {
@@ -31,7 +31,10 @@ export default function ManualResult() {
   // 🔹 Auto-fetch same timeslot as vendor
   useEffect(() => {
     api.get("/result/current-timeslot")
-      .then(res => setTimeslot(res.data.timeslot))
+      .then((res) => {
+        setTimeslot(res.data.timeslot || "");
+        if (res.data.slot_date) setSlotDate(res.data.slot_date);
+      })
       .catch(() => setTimeslot(""));
   }, []);
 

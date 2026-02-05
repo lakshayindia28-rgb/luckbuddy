@@ -7,8 +7,7 @@ from app.models.ticket import Ticket
 from app.schemas.ticket import PlayGameRequest
 from app.models.user import User
 from app.core.security import hash_password
-from app.utils.time_slots import current_timeslot
-from datetime import date
+from app.utils.time_slots import current_timeslot, current_slot_date
 from app.utils.validators import validate_number, validate_serial
 
 router = APIRouter(prefix="/super", tags=["Super"])
@@ -27,7 +26,7 @@ def play_for_vendor(
     db: Session = Depends(get_db)
 ):
     timeslot = current_timeslot()
-    slot_date = date.today().isoformat()
+    slot_date = current_slot_date()
 
     # 🔒 Check if vendor already played this slot
     existing = db.query(Ticket).filter(
