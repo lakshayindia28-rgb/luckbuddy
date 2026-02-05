@@ -11,7 +11,9 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
-      - sqlite_data:/data
+      # Store the sqlite DB on the host so it exists inside your APP_DIR.
+      # On EC2, this becomes: $APP_DIR/data/luckbuddy.db
+      - ./data:/data
     restart: unless-stopped
 
   frontend:
@@ -21,6 +23,3 @@ services:
       - "127.0.0.1:8080:80"
     restart: unless-stopped
 
-volumes:
-  sqlite_data:
-    name: luckbuddy_sqlite_data
