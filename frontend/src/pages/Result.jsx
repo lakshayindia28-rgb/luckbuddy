@@ -5,9 +5,21 @@ import { formatDDMMYY } from "../utils/date";
 
 const SERIALS = ["XA","XB","XC","XD","XE","XF","XG","XH","XI","XJ"];
 
+const todayISO = () => new Date().toLocaleDateString("en-CA");
+
+const slotStartToMinutes = (timeslot = "") => {
+  const start = String(timeslot).split("-")[0]?.trim() || "";
+  const match = start.match(/^(\d{1,2})[.:](\d{2})$/);
+  if (!match) return Number.NEGATIVE_INFINITY;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return Number.NEGATIVE_INFINITY;
+  return hours * 60 + minutes;
+};
+
 export default function Result() {
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(() => todayISO());
+  const [toDate, setToDate] = useState(() => todayISO());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -52,7 +64,10 @@ export default function Result() {
         .sort((a, b) => {
           const d = String(b.date || "").localeCompare(String(a.date || ""));
           if (d !== 0) return d;
-          return String(a.timeslot || "").localeCompare(String(b.timeslot || ""));
+          const aMinutes = slotStartToMinutes(a.timeslot);
+          const bMinutes = slotStartToMinutes(b.timeslot);
+          if (aMinutes !== bMinutes) return bMinutes - aMinutes;
+          return String(b.timeslot || "").localeCompare(String(a.timeslot || ""));
         });
 
       setRows(next);
@@ -66,7 +81,7 @@ export default function Result() {
     loadResults();
     const timer = setInterval(loadResults, 15000); // 🔁 auto refresh
     return () => clearInterval(timer);
-  }, []);
+  }, [fromDate, toDate]);
 
   return (
     <div className="result-wrapper">
