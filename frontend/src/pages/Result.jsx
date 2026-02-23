@@ -150,7 +150,7 @@ export default function Result() {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i}>
-                  <td>{row.date || formatDDMMYY(row.date)}</td>
+                  <td className="result-date-cell">{row.date ? formatDDMMYY(row.date) : "--"}</td>
                   <td>{row.timeslot}</td>
                   {SERIALS.map(s => (
                     <td key={s} className="result-cell">

@@ -74,6 +74,12 @@
 .filter-bar input {
   min-width: 170px;
   font-weight: 600;
+  line-height: 1.2;
+}
+
+.filter-bar input[type="date"] {
+  min-width: 170px;
+  white-space: nowrap;
 }
 
 .filter-bar input::-webkit-calendar-picker-indicator {
@@ -117,6 +123,61 @@
 #clock {
   font-size: 15px;
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-wrap: nowrap;
+    gap: 4px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .filter-bar input {
+    flex: 0 0 auto;
+    min-width: 152px;
+    width: auto;
+    max-width: none;
+    height: 36px;
+    font-size: 13px;
+    padding: 4px 4px;
+    letter-spacing: 0;
+  }
+
+  .filter-bar input[type="date"] {
+    min-width: 152px;
+  }
+
+  .filter-bar button {
+    flex: 0 0 auto;
+    min-width: 64px;
+    width: auto;
+    height: 36px;
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .summary-row,
+  #clock {
+    font-size: 12px;
+  }
+
+  .summary-row {
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  #clock {
+    white-space: nowrap;
+    display: inline-block;
+  }
 }
 
 .table-container {
@@ -183,6 +244,10 @@
   font-weight: bold;
   font-size: 15px;
   color: #ffff00;
+}
+
+.result-date-cell {
+  white-space: nowrap;
 }
 
 .no-result,
