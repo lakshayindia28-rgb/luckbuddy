@@ -22,6 +22,15 @@ export default function Result() {
   const [toDate, setToDate] = useState(() => todayISO());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState("");
+
+  const formatCurrentDateTime = () => {
+    const now = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    return `${days[now.getDay()]} ${months[now.getMonth()]} ${now.getDate()} ${now.getFullYear()} ${now.toLocaleTimeString("en-US")}`;
+  };
 
   /* ---------------- LOAD RESULTS ---------------- */
   const loadResults = async () => {
@@ -83,13 +92,21 @@ export default function Result() {
     return () => clearInterval(timer);
   }, [fromDate, toDate]);
 
+  useEffect(() => {
+    setCurrentDateTime(formatCurrentDateTime());
+    const clockTimer = setInterval(() => {
+      setCurrentDateTime(formatCurrentDateTime());
+    }, 1000);
+
+    return () => clearInterval(clockTimer);
+  }, []);
+
   return (
+    <div className="result-page-bg">
     <div className="result-wrapper">
 
-      {/* HEADER */}
-      <div className="result-header">
-        <h2>BhagyaLaxmi Result</h2>
-        <p>Live & Published Results</p>
+      <div className="legacy-title-row">
+        <span className="legacy-title-text">Show Answer</span>
       </div>
 
       {/* FILTER */}
@@ -104,7 +121,11 @@ export default function Result() {
           value={toDate}
           onChange={e => setToDate(e.target.value)}
         />
-        <button onClick={loadResults}>View Result</button>
+        <button onClick={loadResults} className="result-go-btn">&gt;&gt;GO</button>
+      </div>
+
+      <div id="summary" className="summary-row">
+        Date : <span id="clock">{currentDateTime}</span>
       </div>
 
       {/* TABLE */}
@@ -129,7 +150,7 @@ export default function Result() {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i}>
-                  <td>{formatDDMMYY(row.date)}</td>
+                  <td>{row.date || formatDDMMYY(row.date)}</td>
                   <td>{row.timeslot}</td>
                   {SERIALS.map(s => (
                     <td key={s} className="result-cell">
@@ -145,6 +166,13 @@ export default function Result() {
         )}
       </div>
 
+      <marquee className="legacy-marquee" behavior="scroll" direction="left">
+        This website is intended strictly for entertainment purposes only. Any misuse of the content or involvement
+        in illegal usage is prohibited. We are not responsible for any unlawful use or consequences arising from
+        such misuse.
+      </marquee>
+
+    </div>
     </div>
   );
 }
