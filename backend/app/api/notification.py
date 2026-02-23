@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.middleware.auth import get_current_user
 from app.models.notification import Notification
-from app.schemas.notification import NotificationOut, PublishNotificationRequest
+from app.schemas.notification import NotificationOut, NotificationAdminOut, PublishNotificationRequest
 
 router = APIRouter(prefix="/notification", tags=["Notification"])
 
@@ -67,3 +67,35 @@ def latest_notification(
     )
 
     return n
+
+
+@router.get(
+    "/published",
+    response_model=list[NotificationAdminOut],
+    dependencies=[Depends(get_current_user(["admin"]))],
+)
+def list_published_notifications(
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(Notification)
+        .order_by(Notification.created_at.desc())
+        .all()
+    )
+
+
+@router.delete(
+    "/{notification_id}",
+    dependencies=[Depends(get_current_user(["admin"]))],
+)
+def delete_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+):
+    row = db.query(Notification).filter(Notification.id == notification_id).first()
+    if not row:
+        raise HTTPException(404, "Notification not found")
+
+    db.delete(row)
+    db.commit()
+    return {"message": "Notification deleted"}

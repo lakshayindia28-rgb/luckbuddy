@@ -45,6 +45,9 @@ export default function Sidebar() {
           <Link className="sidebar-link" to="/super">
             📊 Dashboard
           </Link>
+          <Link className="sidebar-link" to="/super/play-inputs">
+            🎯 Play Inputs
+          </Link>
           <Link className="sidebar-link" to="/super/manual-result">
             ✍ Manual Result
           </Link>
@@ -57,14 +60,26 @@ export default function Sidebar() {
       {/* ========== ADMIN ========== */}
       {role === "admin" && (
         <>
-          <Link className="sidebar-link" to="/admin">
+          <Link className="sidebar-link" to="/admin?section=create-super">
             📊 Dashboard
           </Link>
-          <Link className="sidebar-link" to="/admin/users">
+          <Link className="sidebar-link" to="/admin?section=manage-users">
             👥 Manage Users
           </Link>
-          <Link className="sidebar-link" to="/admin/manual-result">
-            ✍ Manual Result
+          <Link className="sidebar-link" to="/admin?section=serial-price">
+            💰 Serial Price
+          </Link>
+          <Link className="sidebar-link" to="/admin?section=digit-price">
+            🔢 Digit Price
+          </Link>
+          <Link className="sidebar-link" to="/admin?section=vendor-inputs">
+            🎯 Play Inputs
+          </Link>
+          <Link className="sidebar-link" to="/admin?section=assign-vendor">
+            🔗 Assign Vendor
+          </Link>
+          <Link className="sidebar-link" to="/admin?section=notifications">
+            📢 Notifications
           </Link>
           <Link className="sidebar-link" to="/result">
             📈 View Results

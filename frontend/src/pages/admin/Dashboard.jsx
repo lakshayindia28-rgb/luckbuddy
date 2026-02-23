@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import DashboardLayout from "../../components/DashboardLayout";
 import NotificationBanner from "../../components/NotificationBanner";
@@ -7,6 +7,25 @@ import NotificationBanner from "../../components/NotificationBanner";
 /* ================= CONSTANTS ================= */
 const SERIALS = ["XA","XB","XC","XD","XE","XF","XG","XH","XI","XJ"];
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+function toTimeslotFromHHMM(hhmm = "") {
+  const match = String(hhmm || "").match(/^(\d{2}):(\d{2})$/);
+  if (!match) return "";
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return "";
+
+  const startTotal = hours * 60 + Math.floor(minutes / 15) * 15;
+  const endTotal = (startTotal + 15) % (24 * 60);
+
+  const startHH = String(Math.floor(startTotal / 60)).padStart(2, "0");
+  const startMM = String(startTotal % 60).padStart(2, "0");
+  const endHH = String(Math.floor(endTotal / 60)).padStart(2, "0");
+  const endMM = String(endTotal % 60).padStart(2, "0");
+
+  return `${startHH}:${startMM}-${endHH}:${endMM}`;
+}
 
 const ADMIN_SECTIONS = [
   {
@@ -46,8 +65,11 @@ const ADMIN_SECTIONS = [
   }
 ];
 
+const ADMIN_SECTION_IDS = new Set(ADMIN_SECTIONS.map((s) => s.id));
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   /* ================= AUTH ================= */
   const logout = () => {
@@ -67,6 +89,8 @@ export default function AdminDashboard() {
 
   const [digitPrices, setDigitPrices] = useState({});
 
+  const [ticketSlotDate, setTicketSlotDate] = useState(() => new Date().toLocaleDateString("en-CA"));
+  const [ticketSlotTime, setTicketSlotTime] = useState("");
   const [ticketTimeslot, setTicketTimeslot] = useState("");
   const [ticketVendor, setTicketVendor] = useState("");
   const [ticketRows, setTicketRows] = useState([]);
@@ -77,12 +101,15 @@ export default function AdminDashboard() {
   const [selectedSuper, setSelectedSuper] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("");
 
-  const [activeSection, setActiveSection] = useState("digit-price");
+  const [activeSection, setActiveSection] = useState("create-super");
 
   const [notice, setNotice] = useState("");
   const [noticeInput, setNoticeInput] = useState("");
   const [notifySuper, setNotifySuper] = useState(true);
   const [notifyVendor, setNotifyVendor] = useState(true);
+  const [publishedNotifications, setPublishedNotifications] = useState([]);
+  const [publishedLoading, setPublishedLoading] = useState(false);
+  const [publishedError, setPublishedError] = useState("");
 
   /* ================= LOAD DATA ================= */
   useEffect(() => {
@@ -91,6 +118,16 @@ export default function AdminDashboard() {
     loadDigitPrices();
     loadDefaultTimeslot();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || "");
+    const section = (params.get("section") || "").trim();
+    if (ADMIN_SECTION_IDS.has(section)) {
+      setActiveSection(section);
+      return;
+    }
+    setActiveSection("create-super");
+  }, [location.search]);
 
   const loadUsers = async () => {
     const res = await api.get("/admin/users");
@@ -121,9 +158,13 @@ export default function AdminDashboard() {
   const loadDefaultTimeslot = async () => {
     try {
       const res = await api.get("/result/current-timeslot");
-      setTicketTimeslot(res.data.timeslot || "");
+      const ts = res.data.timeslot || "";
+      setTicketTimeslot(ts);
+      setTicketSlotDate(res.data.slot_date || new Date().toLocaleDateString("en-CA"));
+      setTicketSlotTime(ts ? String(ts).slice(0, 5) : "00:00");
     } catch {
       setTicketTimeslot("");
+      setTicketSlotTime("00:00");
     }
   };
 
@@ -175,10 +216,21 @@ export default function AdminDashboard() {
   const loadTicketInputs = async () => {
     setTicketError("");
     setTicketLoading(true);
+    const selectedTimeslot = toTimeslotFromHHMM(ticketSlotTime || "00:00");
+
+    if (!ticketSlotDate || !selectedTimeslot) {
+      setTicketError("Please select valid date and time");
+      setTicketLoading(false);
+      return;
+    }
+
+    setTicketTimeslot(selectedTimeslot);
+
     try {
       const res = await api.get("/admin/tickets", {
         params: {
-          timeslot: ticketTimeslot || undefined,
+          slot_date: ticketSlotDate || undefined,
+          timeslot: selectedTimeslot || undefined,
           vendor_username: ticketVendor || undefined
         }
       });
@@ -222,11 +274,41 @@ export default function AdminDashboard() {
       });
       setNotice(msg);
       setNoticeInput("");
+      loadPublishedNotifications();
       alert("Notification published");
     } catch (e) {
       alert(e.response?.data?.detail || "Failed to publish notification");
     }
   };
+
+  const loadPublishedNotifications = async () => {
+    try {
+      setPublishedLoading(true);
+      setPublishedError("");
+      const res = await api.get("/notification/published");
+      setPublishedNotifications(res.data || []);
+    } catch (e) {
+      setPublishedError(e.response?.data?.detail || "Failed to load notifications");
+    } finally {
+      setPublishedLoading(false);
+    }
+  };
+
+  const deletePublishedNotification = async (id) => {
+    if (!window.confirm("Delete this published notification?")) return;
+    try {
+      await api.delete(`/notification/${id}`);
+      setPublishedNotifications((prev) => prev.filter((row) => row.id !== id));
+    } catch (e) {
+      alert(e.response?.data?.detail || "Failed to delete notification");
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "notifications") {
+      loadPublishedNotifications();
+    }
+  }, [activeSection]);
 
   /* ================= UI ================= */
   return (
@@ -237,38 +319,10 @@ export default function AdminDashboard() {
       {/* TOP BAR */}
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h4 className="mb-0">Admin Dashboard</h4>
-        <button className="btn btn-outline-danger btn-sm" onClick={logout}>
-          Logout
-        </button>
       </div>
 
       <div className="row g-3">
-        {/* MENU */}
-        <div className="col-md-4 col-lg-3">
-          <div className="card-box">
-            <h5 className="mb-3">Menu</h5>
-            <div className="list-group">
-              {ADMIN_SECTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`list-group-item list-group-item-action ${
-                    activeSection === s.id ? "active" : ""
-                  }`}
-                  onClick={() => setActiveSection(s.id)}
-                >
-                  <div className="fw-bold">{s.title}</div>
-                  <div style={{ fontSize: 12 }} className="text-secondary">
-                    {s.tagline}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* CONTENT */}
-        <div className="col-md-8 col-lg-9">
+        <div className="col-12">
           {activeSection === "create-super" && (
             <div className="card-box mb-4">
               <h5>Create Super User</h5>
@@ -410,24 +464,43 @@ export default function AdminDashboard() {
 
               <div className="row g-2 align-items-end mb-2">
                 <div className="col-md-4">
+                  <label className="form-label">Slot Date</label>
+                  <input
+                    type="date"
+                    className="form-control admin-play-picker"
+                    value={ticketSlotDate}
+                    onChange={(e) => setTicketSlotDate(e.target.value)}
+                  />
+                </div>
+                <div className="col-md-4">
                   <label className="form-label">Time Slot</label>
                   <input
-                    className="form-control"
-                    placeholder="14:30-14:45"
-                    value={ticketTimeslot}
-                    onChange={(e) => setTicketTimeslot(e.target.value)}
+                    type="time"
+                    step="900"
+                    className="form-control admin-play-picker"
+                    value={ticketSlotTime}
+                    onChange={(e) => setTicketSlotTime(e.target.value)}
                   />
+                  <div className="text-muted mt-1" style={{ fontSize: 12 }}>
+                    Slot: {ticketTimeslot || toTimeslotFromHHMM(ticketSlotTime || "00:00") || "--"}
+                  </div>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label">Vendor Username (optional)</label>
-                  <input
-                    className="form-control"
-                    placeholder="vendor1"
+                  <label className="form-label">Vendor (optional)</label>
+                  <select
+                    className="form-select"
                     value={ticketVendor}
                     onChange={(e) => setTicketVendor(e.target.value)}
-                  />
+                  >
+                    <option value="">All vendors</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.username}>
+                        {v.username}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-12">
                   <button className="btn btn-info w-100" onClick={loadTicketInputs}>
                     {ticketLoading ? "Loading..." : "Load Inputs"}
                   </button>
@@ -547,6 +620,55 @@ export default function AdminDashboard() {
               <button className="btn btn-info" onClick={publishNotification}>
                 Publish Notification
               </button>
+
+              <hr className="my-3" />
+              <h6 className="mb-2">Published Notifications</h6>
+
+              {publishedError && <div className="alert alert-danger py-2">{publishedError}</div>}
+
+              <div className="table-responsive">
+                <table className="table table-dark table-striped align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Audience</th>
+                      <th>Message</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {publishedLoading ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-secondary">Loading...</td>
+                      </tr>
+                    ) : publishedNotifications.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-secondary">No published notifications</td>
+                      </tr>
+                    ) : (
+                      publishedNotifications.map((row) => (
+                        <tr key={row.id}>
+                          <td>{row.id}</td>
+                          <td>{row.audience}</td>
+                          <td>{row.message}</td>
+                          <td>{row.active ? "Active" : "Inactive"}</td>
+                          <td>{row.created_at ? new Date(row.created_at).toLocaleString() : "--"}</td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => deletePublishedNotification(row.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

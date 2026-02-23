@@ -13,6 +13,7 @@ import ManualResult from "./pages/super/ManualResult";
 /* ========== SUPER ========== */
 import SuperDashboard from "./pages/super/Dashboard";
 import SuperAddTicket from "./pages/super/AddTicket";
+import SuperPlayInputs from "./pages/super/PlayInputs";
 
 /* ========== VENDOR ========== */
 import VendorDashboard from "./pages/vendor/Dashboard";
@@ -75,6 +76,15 @@ export default function App() {
           element={
             <ProtectedRoute role="super">
               <ManualResult />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/super/play-inputs"
+          element={
+            <ProtectedRoute role="super">
+              <SuperPlayInputs />
             </ProtectedRoute>
           }
         />

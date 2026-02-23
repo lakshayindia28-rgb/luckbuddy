@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 
@@ -394,4 +395,74 @@ def results_by_slot(
             }
             for r in rows
         ],
+    }
+
+
+# ======================================================
+# TICKET TOTALS FOR A SLOT (ADMIN / SUPER)
+# ======================================================
+@router.get(
+    "/slot-ticket-summary",
+    dependencies=[Depends(get_current_user(["admin", "super"]))],
+)
+def slot_ticket_summary(
+    slot_date: str,
+    timeslot: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        slot_date_iso = datetime.strptime(slot_date, "%Y-%m-%d").date().isoformat()
+    except Exception:
+        raise HTTPException(400, "Invalid slot_date format (expected YYYY-MM-DD)")
+
+    ts = (timeslot or "").strip()
+    if not ts:
+        raise HTTPException(400, "timeslot is required")
+
+    rows = (
+        db.query(
+            Ticket.serial,
+            func.coalesce(func.sum(Ticket.points), 0).label("total_points"),
+            func.count(Ticket.id).label("entries"),
+        )
+        .filter(
+            Ticket.slot_date == slot_date_iso,
+            Ticket.timeslot == ts,
+            Ticket.locked == True,
+        )
+        .group_by(Ticket.serial)
+        .all()
+    )
+
+    summary_map: dict[str, dict[str, int]] = {
+        str(serial): {
+            "total_points": int(total_points or 0),
+            "entries": int(entries or 0),
+        }
+        for serial, total_points, entries in rows
+        if serial
+    }
+
+    items = []
+    grand_total_points = 0
+    grand_total_entries = 0
+    for serial in SERIALS:
+        total_points = int(summary_map.get(serial, {}).get("total_points", 0))
+        entries = int(summary_map.get(serial, {}).get("entries", 0))
+        grand_total_points += total_points
+        grand_total_entries += entries
+        items.append(
+            {
+                "serial": serial,
+                "total_points": total_points,
+                "entries": entries,
+            }
+        )
+
+    return {
+        "slot_date": slot_date_iso,
+        "timeslot": ts,
+        "grand_total_points": grand_total_points,
+        "grand_total_entries": grand_total_entries,
+        "items": items,
     }

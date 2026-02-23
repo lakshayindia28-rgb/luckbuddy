@@ -119,6 +119,36 @@ textarea {
   box-shadow: none;
 }
 
+.form-control[type="date"],
+.form-control[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+.form-control[type="date"]::-webkit-calendar-picker-indicator,
+.form-control[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2);
+  opacity: 1;
+  cursor: pointer;
+}
+
+.manual-result-page .manual-result-picker[type="date"]::-webkit-calendar-picker-indicator,
+.manual-result-page .manual-result-picker[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(29%) sepia(86%) saturate(3187%) hue-rotate(306deg) brightness(104%) contrast(102%);
+  opacity: 1;
+}
+
+.admin-play-picker[type="date"]::-webkit-calendar-picker-indicator,
+.admin-play-picker[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(29%) sepia(86%) saturate(3187%) hue-rotate(306deg) brightness(104%) contrast(102%);
+  opacity: 1;
+}
+
+.super-play-picker[type="date"]::-webkit-calendar-picker-indicator,
+.super-play-picker[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(29%) sepia(86%) saturate(3187%) hue-rotate(306deg) brightness(104%) contrast(102%);
+  opacity: 1;
+}
+
 /* ========== NOTIFICATION ========== */
 .notification-banner {
   background: linear-gradient(135deg, #facc15, #eab308);

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.models.user import User
@@ -185,15 +185,42 @@ def get_ticket_digit_prices(
 
 @router.get(
     "/tickets",
-    dependencies=[Depends(get_current_user(["admin"]))]
+    dependencies=[Depends(get_current_user(["admin", "super"]))]
 )
 def list_tickets(
+    request: Request,
+    slot_date: str | None = None,
     timeslot: str | None = None,
     vendor_username: str | None = None,
     serial: str | None = None,
     db: Session = Depends(get_db)
 ):
+    user = request.state.user
+
     q = db.query(Ticket).filter(Ticket.locked == True)
+
+    if user.get("role") == "super":
+        allowed_vendor_usernames = [
+            v.username
+            for v in db.query(User).filter(
+                User.role == "vendor",
+                User.super_id == user.get("id")
+            ).all()
+        ]
+
+        if not allowed_vendor_usernames:
+            return {
+                "tickets": [],
+                "totals": {
+                    "total_points": 0,
+                    "total_amount": 0,
+                },
+            }
+
+        q = q.filter(Ticket.vendor_username.in_(allowed_vendor_usernames))
+
+    if slot_date:
+        q = q.filter(Ticket.slot_date == slot_date)
     if timeslot:
         q = q.filter(Ticket.timeslot == timeslot)
     if vendor_username:
