@@ -197,7 +197,7 @@
 
 .result-table th,
 .result-table td {
-  border: none;
+  border: 1px solid #fff;
   padding: 6px 6px;
   text-align: center;
   border-radius: 0;
