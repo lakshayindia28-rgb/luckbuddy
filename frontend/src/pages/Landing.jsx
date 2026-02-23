@@ -1,23 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { fetchTriviaQuestion } from "../services/quiz";
+import { fetchTriviaQuestions } from "../services/quiz";
 
-const QUESTION_DURATION_SECONDS = 20;
+const XA_REFRESH_MINUTES = 20;
+const REFRESH_VIEW_TIMER_SECONDS = 120;
+const TIMER_RADIUS = 52;
+const TIMER_CIRCUMFERENCE = 2 * Math.PI * TIMER_RADIUS;
 
-// Simple daily show schedule (local time). Adjust times as needed.
-// The quiz only runs during one of these windows.
-const SHOW_SLOTS = [
-  // Default: always live (so you don't see "No live show").
-  // If you want fixed shows, replace this with specific windows.
-  { start: "00:00", end: "23:59", label: "Live Show" }
-];
+const QUIZ_CODES = Array.from({ length: 10 }, (_, i) => `X${String.fromCharCode(65 + i)}`);
 
-function parseTimeToTodayMs(now, hhmm) {
-  const [hh, mm] = hhmm.split(":").map((v) => Number(v));
-  const d = new Date(now);
-  d.setHours(hh, mm, 0, 0);
-  return d.getTime();
+function getXaCycleKey(date = new Date()) {
+  const dayKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  const totalMinutes = date.getHours() * 60 + date.getMinutes();
+  const cycle = Math.floor(totalMinutes / XA_REFRESH_MINUTES);
+  return `${dayKey}-${cycle}`;
+}
+
+function getXaSecondsToNextCycle(date = new Date()) {
+  const totalSeconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+  const cycleSeconds = XA_REFRESH_MINUTES * 60;
+  const elapsed = totalSeconds % cycleSeconds;
+  const left = cycleSeconds - elapsed;
+  return left === 0 ? cycleSeconds : left;
 }
 
 function formatHhMmSs(totalSeconds) {
@@ -34,82 +39,17 @@ function formatClock(date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function getShowStatus(now) {
-  const nowMs = now.getTime();
-  const slots = SHOW_SLOTS.map((slot) => {
-    const startMs = parseTimeToTodayMs(now, slot.start);
-    const endMs = parseTimeToTodayMs(now, slot.end);
-    return { ...slot, startMs, endMs };
-  }).sort((a, b) => a.startMs - b.startMs);
-
-  const active = slots.find((s) => nowMs >= s.startMs && nowMs < s.endMs);
-  if (active) {
-    return {
-      state: "active",
-      slot: active,
-      secondsToSlotEnd: Math.ceil((active.endMs - nowMs) / 1000)
-    };
-  }
-
-  const next = slots.find((s) => nowMs < s.startMs);
-  if (next) {
-    return {
-      state: "waiting",
-      nextSlot: next,
-      secondsToNextStart: Math.ceil((next.startMs - nowMs) / 1000)
-    };
-  }
-
-  // No more slots today → next is tomorrow's first slot.
-  const first = slots[0];
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const startMs = parseTimeToTodayMs(tomorrow, first.start);
-  return {
-    state: "waiting",
-    nextSlot: { ...first, startMs },
-    secondsToNextStart: Math.ceil((startMs - nowMs) / 1000)
-  };
-}
-
 export default function Landing() {
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
-  const status = useMemo(() => getShowStatus(now), [now]);
+  const [showInstructions, setShowInstructions] = useState(false);
 
-  const [question, setQuestion] = useState(null);
-  const [loadingQuestion, setLoadingQuestion] = useState(false);
-  const [questionError, setQuestionError] = useState("");
-  const [selected, setSelected] = useState(null);
-  const [isCorrect, setIsCorrect] = useState(null);
-  const [submitted, setSubmitted] = useState(false);
-
-  const [questionSecondsLeft, setQuestionSecondsLeft] = useState(QUESTION_DURATION_SECONDS);
-  const [answeredCount, setAnsweredCount] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [showSummary, setShowSummary] = useState(false);
-
-  const slotKey = status.state === "active" ? `${status.slot.start}-${status.slot.end}` : "";
-  const activeSlotRef = useRef(slotKey);
-
-  async function loadNextQuestion({ resetTimer = true } = {}) {
-    const controller = new AbortController();
-    setLoadingQuestion(true);
-    setQuestionError("");
-    try {
-      const q = await fetchTriviaQuestion({ signal: controller.signal });
-      setQuestion(q);
-      setSelected(null);
-      setIsCorrect(null);
-      setSubmitted(false);
-      if (resetTimer) setQuestionSecondsLeft(QUESTION_DURATION_SECONDS);
-    } catch (e) {
-      setQuestionError(e?.message || "Failed to load question");
-    } finally {
-      setLoadingQuestion(false);
-    }
-    return () => controller.abort();
-  }
+  const [xaTiles, setXaTiles] = useState([]);
+  const [xaLoading, setXaLoading] = useState(false);
+  const [xaError, setXaError] = useState("");
+  const [xaSelections, setXaSelections] = useState({});
+  const [xaSubmitted, setXaSubmitted] = useState({});
+  const [refreshViewSecondsLeft, setRefreshViewSecondsLeft] = useState(REFRESH_VIEW_TIMER_SECONDS);
 
   // Update clock every second.
   useEffect(() => {
@@ -117,117 +57,124 @@ export default function Landing() {
     return () => clearInterval(t);
   }, []);
 
-  // When slot changes, reset state.
+  // Local 2-minute timer: resets on every page refresh/reload.
   useEffect(() => {
-    if (activeSlotRef.current !== slotKey) {
-      activeSlotRef.current = slotKey;
-      setQuestion(null);
-      setSelected(null);
-      setIsCorrect(null);
-      setQuestionSecondsLeft(QUESTION_DURATION_SECONDS);
-      setAnsweredCount(0);
-      setCorrectCount(0);
-      setShowSummary(false);
-      setQuestionError("");
-    }
-
-    if (status.state === "active") {
-      // Load the first question as soon as the show starts.
-      if (!question && !loadingQuestion) {
-        loadNextQuestion();
-      }
-    } else {
-      // Not active → no live quiz.
-      setQuestion(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.state, slotKey]);
-
-  // Question countdown & auto-rotate within active slot.
-  useEffect(() => {
-    if (status.state !== "active") return;
-    if (showSummary) return;
-
-    // If slot is about to end, stop rotating and show summary.
-    if (status.secondsToSlotEnd <= 0) {
-      setShowSummary(true);
-      return;
-    }
-
-    const tick = setInterval(() => {
-      setQuestionSecondsLeft((prev) => {
-        const next = prev - 1;
-        return next;
-      });
+    const timer = setInterval(() => {
+      setRefreshViewSecondsLeft((prev) => (prev <= 0 ? 0 : prev - 1));
     }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-    return () => clearInterval(tick);
-  }, [status.state, status.secondsToSlotEnd, showSummary]);
+  const xaCycleKey = useMemo(() => getXaCycleKey(now), [now]);
+  const xaSecondsLeft = useMemo(() => getXaSecondsToNextCycle(now), [now]);
 
   useEffect(() => {
-    if (status.state !== "active") return;
-    if (showSummary) return;
+    let ignore = false;
+    const controller = new AbortController();
 
-    if (status.secondsToSlotEnd <= 0) {
-      setShowSummary(true);
-      return;
-    }
+    async function loadXaTiles() {
+      setXaLoading(true);
+      setXaError("");
+      try {
+        const questions = await fetchTriviaQuestions(QUIZ_CODES.length, { signal: controller.signal });
+        if (ignore) return;
 
-    if (questionSecondsLeft <= 0) {
-      // If the slot doesn't have enough time for another question, end it.
-      if (status.secondsToSlotEnd <= 1) {
-        setShowSummary(true);
-        return;
+        const prepared = QUIZ_CODES.map((code, idx) => {
+          const source = questions[idx % questions.length];
+          return {
+            code,
+            question: source.question,
+            options: source.options,
+            correctAnswer: source.correctAnswer,
+            category: source.category,
+          };
+        });
+
+        setXaTiles(prepared);
+        setXaSelections({});
+        setXaSubmitted({});
+      } catch (e) {
+        if (ignore || e?.name === "AbortError") return;
+        setXaError(e?.message || "Failed to load XA-XJ questions");
+        setXaTiles([]);
+      } finally {
+        if (!ignore) setXaLoading(false);
       }
-      loadNextQuestion();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questionSecondsLeft, status.state, status.secondsToSlotEnd, showSummary]);
 
-  const handlePick = (opt) => {
-    if (!question) return;
-    if (submitted) return;
-    setSelected(opt);
+    loadXaTiles();
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [xaCycleKey]);
+
+  const handleXaPick = (code, option) => {
+    if (xaSubmitted[code]) return;
+    setXaSelections((prev) => ({ ...prev, [code]: option }));
   };
 
-  const handleSubmit = () => {
-    if (!question) return;
-    if (submitted) return;
-    if (selected == null) return;
-    const ok = selected === question.correctAnswer;
-    setIsCorrect(ok);
-    setSubmitted(true);
-    setAnsweredCount((c) => c + 1);
-    if (ok) setCorrectCount((c) => c + 1);
+  const handleXaSubmit = (code) => {
+    const picked = xaSelections[code];
+    if (!picked) return;
+    setXaSubmitted((prev) => ({ ...prev, [code]: true }));
   };
 
-  const endMessage = useMemo(() => {
-    if (answeredCount === 0) return "Show ended. Come back for the next slot.";
-    return "Thanks for participating!";
-  }, [answeredCount]);
+  const timerProgress = Math.max(0, Math.min(1, refreshViewSecondsLeft / REFRESH_VIEW_TIMER_SECONDS));
+  const timerOffset = TIMER_CIRCUMFERENCE * (1 - timerProgress);
 
   /* ================= QUIZ UI ================= */
   return (
-    <div
-      className="min-vh-100"
-      style={{
-        background: "linear-gradient(180deg,#020617,#000)",
-        color: "#fff"
-      }}
-    >
+    <div className="landing-quiz-page min-vh-100">
+      {showInstructions && (
+        <>
+          <div className="landing-instructions-backdrop" onClick={() => setShowInstructions(false)}></div>
+          <aside className="landing-instructions-drawer">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="mb-0 fw-bold">Quiz Instructions</h5>
+              <button
+                className="btn btn-sm btn-outline-light"
+                onClick={() => setShowInstructions(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <h6 className="fw-bold mb-1">Time Limit</h6>
+            <p className="mb-3">You have a limited time to complete each quiz session. The timer shows the remaining time for the current slot.</p>
+
+            <h6 className="fw-bold mb-1">Answering Questions</h6>
+            <p className="mb-3">Select one answer for each question. All questions are mandatory. Review your answers before submitting.</p>
+
+            <h6 className="fw-bold mb-1">Important Notes</h6>
+            <ul className="mb-3 ps-3">
+              <li>Quiz runs in multiple time slots throughout the day</li>
+              <li>Each slot has unique questions</li>
+              <li>Timer will blink when 2 minutes remain</li>
+              <li>Submit before time expires</li>
+              <li>Questions are labeled with brand codes (XA, XB, etc.)</li>
+            </ul>
+
+            <h6 className="fw-bold mb-1">Scoring</h6>
+            <p className="mb-0">Each correct answer carries equal marks. There is no negative marking for incorrect answers.</p>
+          </aside>
+        </>
+      )}
+
       {/* HEADER */}
-      <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom border-secondary">
-        <h3 className="text-warning fw-bold">BhagyaLaxmi</h3>
+      <div className="landing-quiz-header d-flex justify-content-between align-items-center px-4 py-3">
+        <h3 className="fw-bold mb-0">BhagyaLaxmi</h3>
 
         <div>
           <button
-            className="btn btn-outline-info me-2"
+            className="btn btn-dark me-2"
             onClick={() => navigate("/result")}
           >
             View Result
           </button>
           <button
-            className="btn btn-warning"
+            className="btn btn-danger"
             onClick={() => navigate("/login")}
           >
             Login
@@ -235,140 +182,90 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* LIVE QUIZ */}
+      {/* XA-XJ QUIZ */}
       <div className="container py-4">
-        <h4 className="text-center mb-2">📺 BhagyaLaxmi Live Quiz Show</h4>
-        <p className="text-center text-secondary mb-4">
-          Time now: <span className="text-light">{formatClock(now)}</span>
+        <h4 className="text-center mb-2 text-dark fw-bold">📺 BhagyaLaxmi Live Quiz Tiles</h4>
+        <p className="text-center text-dark mb-4 fw-semibold">
+          Time now: <span className="text-danger">{formatClock(now)}</span>
         </p>
+        <div className="d-flex justify-content-start mb-3">
+          <button
+            className="btn btn-dark"
+            onClick={() => setShowInstructions(true)}
+          >
+            Quiz Instructions
+          </button>
+        </div>
 
-        {status.state === "waiting" ? (
-          <div className="card bg-dark text-light shadow-sm">
-            <div className="card-body text-center">
-              <h5 className="text-warning mb-2">No live show right now</h5>
-              <p className="mb-2">
-                Next show: <span className="text-info fw-bold">{status.nextSlot.label}</span>
-              </p>
-              <p className="mb-0">
-                Starts at <span className="text-light fw-bold">{status.nextSlot.start}</span> — Countdown:{" "}
-                <span className="text-success fw-bold">{formatHhMmSs(status.secondsToNextStart)}</span>
-              </p>
-            </div>
-          </div>
-        ) : showSummary ? (
-          <div className="d-flex justify-content-center">
-            <div className="card bg-dark p-4 text-center shadow-lg" style={{ maxWidth: 520 }}>
-              <h3 className="text-warning">🎉 Show Ended</h3>
-              <h6 className="mt-2 text-secondary">{status.slot.label}</h6>
-              <h5 className="mt-3">Answered: {answeredCount}</h5>
-              <p className="mt-2 text-info">{endMessage}</p>
-              <button
-                className="btn btn-outline-light mt-2"
-                onClick={() => {
-                  // Stay on page; summary will auto-clear when next slot starts.
-                  setShowSummary(false);
-                  setAnsweredCount(0);
-                  setCorrectCount(0);
-                  setQuestion(null);
-                  setQuestionSecondsLeft(QUESTION_DURATION_SECONDS);
-                  if (status.state === "active") loadNextQuestion();
-                }}
-              >
-                Try Again (if slot active)
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="card bg-dark text-light mb-3 shadow-sm">
-              <div className="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <div>
-                  <div className="text-secondary">Live Slot</div>
-                  <div className="fw-bold text-warning">
-                    {status.slot.label} ({status.slot.start} - {status.slot.end})
-                  </div>
-                </div>
-
-                <div className="text-end">
-                  <div>
-                    Next question in:{" "}
-                    <span className="text-success fw-bold">{formatHhMmSs(questionSecondsLeft)}</span>
-                  </div>
-                  <div>
-                    Slot ends in:{" "}
-                    <span className="text-info fw-bold">{formatHhMmSs(status.secondsToSlotEnd)}</span>
-                  </div>
-                </div>
+        <div className="card landing-quiz-card landing-quiz-random-card shadow-sm mt-4">
+          <div className="card-body">
+            <div className="mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <h5 className="mb-0 text-warning">Live Quiz Tiles (XA–XJ)</h5>
+              <div className="landing-timer-wrap" style={{ width: 96, height: 96 }}>
+                <svg width="96" height="96" viewBox="0 0 128 128">
+                  <circle className="landing-timer-bg" cx="64" cy="64" r={TIMER_RADIUS}></circle>
+                  <circle
+                    className="landing-timer-progress"
+                    cx="64"
+                    cy="64"
+                    r={TIMER_RADIUS}
+                    strokeDasharray={TIMER_CIRCUMFERENCE}
+                    strokeDashoffset={timerOffset}
+                  ></circle>
+                </svg>
+                <div className="landing-timer-text" style={{ fontSize: 14 }}>{formatHhMmSs(refreshViewSecondsLeft)}</div>
               </div>
             </div>
 
-            <div className="card bg-dark text-light shadow-sm">
-              <div className="card-body">
-                <div className="d-flex justify-content-between align-items-start gap-2">
-                  <div>
-                    <h6 className="mb-1">Question</h6>
-                    <div className="text-secondary" style={{ fontSize: 13 }}>
-                      Answered: {answeredCount}
-                      {question?.category ? ` • ${question.category}` : ""}
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-sm btn-outline-info"
-                    disabled={loadingQuestion}
-                    onClick={() => loadNextQuestion()}
-                    title="Fetch a new question now"
-                  >
-                    Change Now
-                  </button>
-                </div>
-
-                <div className="mt-3">
-                  {questionError ? (
-                    <div className="alert alert-danger mb-0">{questionError}</div>
-                  ) : loadingQuestion && !question ? (
-                    <div className="text-secondary">Loading question…</div>
-                  ) : question ? (
-                    <>
-                      <h6 className="mb-3">{question.question}</h6>
-                      {question.options.map((opt) => {
-                        const picked = selected === opt;
-                        let btnClass = "btn-outline-light";
-                        if (picked) btnClass = submitted ? "btn-primary" : "btn-info";
-
-                        return (
-                          <button
-                            key={opt}
-                            className={`btn w-100 text-start mb-2 ${btnClass}`}
-                            disabled={submitted}
-                            onClick={() => handlePick(opt)}
-                          >
-                            {opt}
-                          </button>
-                        );
-                      })}
-
+            {xaError ? (
+              <div className="alert alert-danger mb-0">{xaError}</div>
+            ) : xaLoading && xaTiles.length === 0 ? (
+              <div className="text-secondary">Loading live XA–XJ questions…</div>
+            ) : (
+              <div className="landing-quiz-grid">
+                {xaTiles.map((tile) => {
+                  const picked = xaSelections[tile.code];
+                  const isSubmitted = Boolean(xaSubmitted[tile.code]);
+                  return (
+                    <div key={tile.code} className="landing-quiz-tile">
+                      <span className="landing-quiz-code">{tile.code}</span>
+                      <p className="landing-quiz-question">{tile.question}</p>
+                      <div className="landing-quiz-options">
+                        {tile.options.map((opt) => (
+                          <label key={`${tile.code}-${opt}`} className="landing-quiz-option">
+                            <input
+                              type="radio"
+                              name={`xa-${tile.code}`}
+                              checked={picked === opt}
+                              disabled={isSubmitted}
+                              onChange={() => handleXaPick(tile.code, opt)}
+                            />
+                            <span>{opt}</span>
+                          </label>
+                        ))}
+                      </div>
                       <button
-                        className="btn btn-warning w-100 mt-2"
-                        disabled={submitted || selected == null}
-                        onClick={handleSubmit}
+                        className="btn btn-sm btn-warning w-100 mt-2"
+                        onClick={() => handleXaSubmit(tile.code)}
+                        disabled={isSubmitted || !picked}
                       >
-                        Submit Answer
+                        {isSubmitted ? "Submitted" : "Submit"}
                       </button>
-
-                      {submitted && (
-                        <div className="mt-2">
-                          <span className="text-info fw-bold">Submitted successfully</span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-secondary">Waiting for question…</div>
-                  )}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          </>
-        )}
+            )}
+            {xaLoading && xaTiles.length > 0 && (
+              <div className="text-secondary mt-3" style={{ fontSize: 13 }}>
+                Refreshing next XA–XJ set…
+              </div>
+            )}
+            {!xaLoading && !xaError && xaTiles.length === 0 && (
+              <div className="text-secondary">No questions available right now.</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

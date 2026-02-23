@@ -184,3 +184,259 @@ h6 {
   color: #38bdf8;
   font-weight: 600;
 }
+
+.landing-quiz-page,
+.login-yellow-page {
+  min-height: 100vh;
+  background: #eff20c;
+  color: #000;
+}
+
+.landing-quiz-header {
+  background: #ac1221;
+  color: #fff;
+  border-bottom: 1px solid #000;
+}
+
+.landing-quiz-card {
+  background: #080100;
+  color: #fff;
+  border: 1px solid #fff;
+}
+
+.login-yellow-card {
+  background: #ac1221;
+  color: #fff;
+  border: 1px solid #fff;
+}
+
+.login-yellow-card .form-control,
+.login-yellow-card textarea,
+.login-yellow-card .input-group .btn {
+  background: #ac1221;
+  border-color: #fff;
+  color: #fff;
+}
+
+.login-yellow-card .form-control::placeholder {
+  color: #d1d5db;
+}
+
+.login-orbit-wrap {
+  position: relative;
+  padding: 26px;
+}
+
+.login-orbit-dot {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  box-shadow: 0 0 12px currentColor, 0 0 22px currentColor;
+  animation: loginOrbitMove 3.6s linear infinite;
+  z-index: 1;
+}
+
+.login-orbit-dot-1 {
+  color: #22d3ee;
+  top: 2px;
+  left: 2px;
+  animation-delay: 0s;
+}
+
+.login-orbit-dot-2 {
+  color: #f97316;
+  top: 2px;
+  right: 2px;
+  animation-delay: 0.9s;
+}
+
+.login-orbit-dot-3 {
+  color: #a855f7;
+  right: 2px;
+  bottom: 2px;
+  animation-delay: 1.8s;
+}
+
+.login-orbit-dot-4 {
+  color: #22c55e;
+  bottom: 2px;
+  left: 2px;
+  animation-delay: 2.7s;
+}
+
+@keyframes loginOrbitMove {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.3) translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.login-yellow-card {
+  position: relative;
+  z-index: 2;
+}
+
+.login-title-wrap {
+  margin-bottom: 16px;
+}
+
+.login-brand-title {
+  color: #fff;
+  letter-spacing: 1px;
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.login-subtitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff !important;
+}
+
+.login-input-text {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.login-role-label {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+}
+
+.login-btn-text {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.login-footer-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e5e7eb !important;
+}
+
+.login-strong-text {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.landing-quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.landing-quiz-tile {
+  border: 1px solid #4b5563;
+  border-radius: 10px;
+  padding: 10px;
+  background: #111827;
+}
+
+.landing-quiz-code {
+  display: inline-block;
+  font-weight: 700;
+  color: #facc15;
+  margin-bottom: 6px;
+}
+
+.landing-quiz-question {
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: #f9fafb;
+}
+
+.landing-quiz-options {
+  display: grid;
+  gap: 6px;
+}
+
+.landing-quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #d1d5db;
+}
+
+.landing-timer-wrap {
+  position: relative;
+  width: 128px;
+  height: 128px;
+}
+
+.landing-timer-bg {
+  fill: none;
+  stroke: #374151;
+  stroke-width: 10;
+}
+
+.landing-timer-progress {
+  fill: none;
+  stroke: #22c55e;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 64px 64px;
+  transition: stroke-dashoffset 0.3s linear;
+}
+
+.landing-timer-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #22c55e;
+  font-size: 18px;
+}
+
+.landing-quiz-random-card {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #d1d5db;
+}
+
+.landing-quiz-random-card .landing-quiz-tile {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+}
+
+.landing-quiz-random-card .landing-quiz-question,
+.landing-quiz-random-card .landing-quiz-option {
+  color: #111827;
+}
+
+.landing-instructions-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1040;
+}
+
+.landing-instructions-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(380px, 90vw);
+  height: 100vh;
+  background: #111827;
+  color: #f9fafb;
+  border-right: 1px solid #374151;
+  padding: 18px 16px;
+  overflow-y: auto;
+  z-index: 1050;
+}
+
+.landing-instructions-drawer p,
+.landing-instructions-drawer li {
+  color: #e5e7eb;
+  font-size: 14px;
+}

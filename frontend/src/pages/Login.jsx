@@ -83,87 +83,90 @@ export default function Login() {
   };
 
   return (
-    <div className="page-wrapper d-flex justify-content-center align-items-center">
-      <div className="card-box" style={{ width: 380 }}>
+    <div className="login-yellow-page d-flex justify-content-center align-items-center">
+      <div className="login-orbit-wrap">
+        <span className="login-orbit-dot login-orbit-dot-1" aria-hidden="true"></span>
+        <span className="login-orbit-dot login-orbit-dot-2" aria-hidden="true"></span>
+        <span className="login-orbit-dot login-orbit-dot-3" aria-hidden="true"></span>
+        <span className="login-orbit-dot login-orbit-dot-4" aria-hidden="true"></span>
 
-        {/* LOGO / TITLE */}
-        <div className="text-center mb-4">
-          <h3 style={{ color: "#38bdf8", letterSpacing: 1 }}>
-            BhagyaLaxmi
-          </h3>
-          <p className="text-muted" style={{ fontSize: 13 }}>
-            Secure Login Portal
-          </p>
-        </div>
+        <div className="card-box login-yellow-card" style={{ width: 380 }}>
+
+          {/* LOGO / TITLE */}
+          <div className="text-center mb-4 login-title-wrap">
+            <h3 className="login-brand-title">BhagyaLaxmi</h3>
+            <p className="text-dark login-subtitle">Secure Login Portal</p>
+          </div>
 
         {/* ERROR */}
-        {error && (
-          <div className="alert alert-danger py-1 text-center">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="alert alert-danger py-1 text-center login-strong-text">
+              {error}
+            </div>
+          )}
 
         {/* USERNAME */}
-        <input
-          className="form-control mb-2"
-          placeholder="Username"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
-        />
+          <input
+            className="form-control mb-2 login-input-text"
+            placeholder="Username"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+          />
 
         {/* PASSWORD */}
-        <div className="input-group mb-3">
-          <input
-            type={showPassword ? "text" : "password"}
-            className="form-control"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
-          <button
-            className="btn btn-outline-secondary"
-            type="button"
-            onClick={() => setShowPassword(s => !s)}
-            title={showPassword ? "Hide password" : "Show password"}
-          >
-            {showPassword ? "Hide" : "View"}
-          </button>
-        </div>
+          <div className="input-group mb-3">
+            <input
+              type={showPassword ? "text" : "password"}
+              className="form-control login-input-text"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+            <button
+              className="btn btn-outline-secondary login-input-text"
+              type="button"
+              onClick={() => setShowPassword(s => !s)}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? "Hide" : "View"}
+            </button>
+          </div>
 
         {/* ROLE SELECT */}
-        <div className="d-flex justify-content-between mb-3">
-          {["admin", "super", "vendor"].map(r => (
-            <label
-              key={r}
-              style={{ fontSize: 13, cursor: "pointer" }}
-            >
-              <input
-                type="radio"
-                name="role"
-                value={r}
-                checked={role === r}
-                onChange={e => setRole(e.target.value)}
-                className="me-1"
-              />
-              {r.toUpperCase()}
-            </label>
-          ))}
-        </div>
+          <div className="d-flex justify-content-between mb-3 login-role-row">
+            {["admin", "super", "vendor"].map(r => (
+              <label
+                key={r}
+                className="login-role-label"
+              >
+                <input
+                  type="radio"
+                  name="role"
+                  value={r}
+                  checked={role === r}
+                  onChange={e => setRole(e.target.value)}
+                  className="me-1"
+                />
+                {r.toUpperCase()}
+              </label>
+            ))}
+          </div>
 
         {/* LOGIN BUTTON */}
-        <button
-          className="btn btn-primary w-100"
-          onClick={login}
-          disabled={loading}
-        >
-          {loading ? "Logging in..." : "Login"}
-        </button>
+          <button
+            className="btn btn-primary w-100 login-btn-text"
+            onClick={login}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
 
         {/* FOOTER */}
-        <p className="text-center mt-4 text-muted" style={{ fontSize: 11 }}>
-          © 2026 BhagyaLaxmi
-        </p>
+          <p className="text-center mt-4 text-muted login-footer-text">
+            © 2026 BhagyaLaxmi
+          </p>
 
+        </div>
       </div>
     </div>
   );

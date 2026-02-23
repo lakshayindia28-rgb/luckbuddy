@@ -14,17 +14,7 @@ function shuffleArray(array) {
   return result;
 }
 
-export async function fetchTriviaQuestion({ signal } = {}) {
-  const url = "https://opentdb.com/api.php?amount=1&type=multiple";
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Quiz API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const raw = data?.results?.[0];
-  if (!raw) throw new Error("Quiz API returned no results");
-
+function parseRawQuestion(raw) {
   const question = decodeHtml(raw.question);
   const correctAnswer = decodeHtml(raw.correct_answer);
   const incorrectAnswers = (raw.incorrect_answers || []).map(decodeHtml);
@@ -37,4 +27,33 @@ export async function fetchTriviaQuestion({ signal } = {}) {
     category: decodeHtml(raw.category || ""),
     difficulty: decodeHtml(raw.difficulty || "")
   };
+}
+
+export async function fetchTriviaQuestion({ signal } = {}) {
+  const url = "https://opentdb.com/api.php?amount=1&type=multiple";
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Quiz API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const raw = data?.results?.[0];
+  if (!raw) throw new Error("Quiz API returned no results");
+
+  return parseRawQuestion(raw);
+}
+
+export async function fetchTriviaQuestions(count = 10, { signal } = {}) {
+  const amount = Math.max(1, Number(count || 1));
+  const url = `https://opentdb.com/api.php?amount=${amount}&type=multiple`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Quiz API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const raws = Array.isArray(data?.results) ? data.results : [];
+  if (!raws.length) throw new Error("Quiz API returned no results");
+
+  return raws.map(parseRawQuestion);
 }
