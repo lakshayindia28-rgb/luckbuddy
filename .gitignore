@@ -25,3 +25,7 @@ Thumbs.db
 # ===== TEMP =====
 *.tmp
 *.swp
+
+# ===== Local DB =====
+data/luckbuddy.db
+luckbuddy.db

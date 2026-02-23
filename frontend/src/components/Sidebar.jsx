@@ -75,6 +75,9 @@ export default function Sidebar() {
           <Link className="sidebar-link" to="/admin?section=vendor-inputs">
             🎯 Play Inputs
           </Link>
+          <Link className="sidebar-link" to="/admin/manual-result">
+            ✍ Manual Result
+          </Link>
           <Link className="sidebar-link" to="/admin?section=assign-vendor">
             🔗 Assign Vendor
           </Link>
