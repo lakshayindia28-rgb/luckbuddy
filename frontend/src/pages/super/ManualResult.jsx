@@ -47,7 +47,7 @@ export default function ManualResult() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [ticketSummary, setTicketSummary] = useState(() =>
-    SERIALS.map((serial) => ({ serial, total_points: 0, entries: 0 }))
+    Array.from({ length: 10 }, (_, digit) => ({ digit, total_points: 0, entries: 0 }))
   );
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
@@ -147,7 +147,7 @@ export default function ManualResult() {
     const loadSummary = async () => {
       if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate) || !timeslot) {
         if (cancelled) return;
-        setTicketSummary(SERIALS.map((serial) => ({ serial, total_points: 0, entries: 0 })));
+        setTicketSummary(Array.from({ length: 10 }, (_, digit) => ({ digit, total_points: 0, entries: 0 })));
         setGrandTotalPoints(0);
         setSummaryError("");
         return;
@@ -162,11 +162,18 @@ export default function ManualResult() {
         if (cancelled) return;
 
         const items = Array.isArray(res.data?.items) ? res.data.items : [];
+        const itemMap = new Map(
+          items.map((x) => [Number(x?.digit), {
+            total_points: Number(x?.total_points || 0),
+            entries: Number(x?.entries || 0),
+          }])
+        );
+
         setTicketSummary(
-          SERIALS.map((serial) => {
-            const found = items.find((x) => x?.serial === serial);
+          Array.from({ length: 10 }, (_, digit) => {
+            const found = itemMap.get(digit);
             return {
-              serial,
+              digit,
               total_points: Number(found?.total_points || 0),
               entries: Number(found?.entries || 0),
             };
@@ -175,7 +182,7 @@ export default function ManualResult() {
         setGrandTotalPoints(Number(res.data?.grand_total_points || 0));
       } catch {
         if (cancelled) return;
-        setTicketSummary(SERIALS.map((serial) => ({ serial, total_points: 0, entries: 0 })));
+        setTicketSummary(Array.from({ length: 10 }, (_, digit) => ({ digit, total_points: 0, entries: 0 })));
         setGrandTotalPoints(0);
         setSummaryError("Failed to load ticket totals");
       } finally {
@@ -376,7 +383,7 @@ export default function ManualResult() {
 
         <div className="col-12 col-xl-4">
           <div className="card p-3">
-            <h5 className="mb-2">Ticket Totals (XA–XJ)</h5>
+            <h5 className="mb-2">Ticket Totals (0–9)</h5>
             <div className="mb-2">
               <label className="mb-1">Quick Date & Time Picker</label>
               <input
@@ -401,14 +408,14 @@ export default function ManualResult() {
               <table className="table table-dark table-striped align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Serial</th>
+                    <th>Digit</th>
                     <th className="text-end">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ticketSummary.map((row) => (
-                    <tr key={row.serial}>
-                      <td>{row.serial}</td>
+                    <tr key={row.digit}>
+                      <td>{row.digit}</td>
                       <td className="text-end">{row.total_points}</td>
                     </tr>
                   ))}

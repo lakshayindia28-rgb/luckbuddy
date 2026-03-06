@@ -419,9 +419,11 @@ def slot_ticket_summary(
     if not ts:
         raise HTTPException(400, "timeslot is required")
 
+    digit_expr = Ticket.number % 10
+
     rows = (
         db.query(
-            Ticket.serial,
+            digit_expr.label("digit"),
             func.coalesce(func.sum(Ticket.points), 0).label("total_points"),
             func.count(Ticket.id).label("entries"),
         )
@@ -430,30 +432,30 @@ def slot_ticket_summary(
             Ticket.timeslot == ts,
             Ticket.locked == True,
         )
-        .group_by(Ticket.serial)
+        .group_by(digit_expr)
         .all()
     )
 
-    summary_map: dict[str, dict[str, int]] = {
-        str(serial): {
+    summary_map: dict[int, dict[str, int]] = {
+        int(digit): {
             "total_points": int(total_points or 0),
             "entries": int(entries or 0),
         }
-        for serial, total_points, entries in rows
-        if serial
+        for digit, total_points, entries in rows
+        if digit is not None
     }
 
     items = []
     grand_total_points = 0
     grand_total_entries = 0
-    for serial in SERIALS:
-        total_points = int(summary_map.get(serial, {}).get("total_points", 0))
-        entries = int(summary_map.get(serial, {}).get("entries", 0))
+    for digit in range(10):
+        total_points = int(summary_map.get(digit, {}).get("total_points", 0))
+        entries = int(summary_map.get(digit, {}).get("entries", 0))
         grand_total_points += total_points
         grand_total_entries += entries
         items.append(
             {
-                "serial": serial,
+                "digit": digit,
                 "total_points": total_points,
                 "entries": entries,
             }
