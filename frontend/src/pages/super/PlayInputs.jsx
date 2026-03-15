@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import api from "../../services/api";
 import DashboardLayout from "../../components/DashboardLayout";
 
+const SLOT_SCHEDULE = [
+  { start: 8 * 60 + 45, end: 11 * 60, interval: 15 },
+  { start: 11 * 60, end: 20 * 60, interval: 20 },
+];
+
 function toTimeslotFromHHMM(hhmm = "") {
   const match = String(hhmm || "").match(/^(\d{2}):(\d{2})$/);
   if (!match) return "";
@@ -10,15 +15,23 @@ function toTimeslotFromHHMM(hhmm = "") {
   const minutes = Number(match[2]);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return "";
 
-  const startTotal = hours * 60 + Math.floor(minutes / 15) * 15;
-  const endTotal = (startTotal + 15) % (24 * 60);
+  const totalMins = hours * 60 + minutes;
 
-  const startHH = String(Math.floor(startTotal / 60)).padStart(2, "0");
-  const startMM = String(startTotal % 60).padStart(2, "0");
-  const endHH = String(Math.floor(endTotal / 60)).padStart(2, "0");
-  const endMM = String(endTotal % 60).padStart(2, "0");
+  for (const { start, end, interval } of SLOT_SCHEDULE) {
+    if (totalMins >= start && totalMins < end) {
+      const slotIndex = Math.floor((totalMins - start) / interval);
+      const slotStart = start + slotIndex * interval;
+      const slotEnd = slotStart + interval;
+      if (slotEnd > end) return "";
+      const sHH = String(Math.floor(slotStart / 60)).padStart(2, "0");
+      const sMM = String(slotStart % 60).padStart(2, "0");
+      const eHH = String(Math.floor(slotEnd / 60)).padStart(2, "0");
+      const eMM = String(slotEnd % 60).padStart(2, "0");
+      return `${sHH}:${sMM}-${eHH}:${eMM}`;
+    }
+  }
 
-  return `${startHH}:${startMM}-${endHH}:${endMM}`;
+  return "";
 }
 
 export default function SuperPlayInputs() {
@@ -124,7 +137,7 @@ export default function SuperPlayInputs() {
             <label className="form-label">Time Slot</label>
             <input
               type="time"
-              step="900"
+              step="300"
               className="form-control super-play-picker"
               value={slotTime}
               onChange={(e) => setSlotTime(e.target.value)}

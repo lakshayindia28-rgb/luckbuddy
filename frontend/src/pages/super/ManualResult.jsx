@@ -5,6 +5,11 @@ import { formatDDMMYY } from "../../utils/date";
 
 const SERIALS = ["XA", "XB", "XC", "XD", "XE", "XF", "XG", "XH", "XI", "XJ"];
 
+const SLOT_SCHEDULE = [
+  { start: 8 * 60 + 45, end: 11 * 60, interval: 15 },
+  { start: 11 * 60, end: 20 * 60, interval: 20 },
+];
+
 function toTimeslotFromHHMM(hhmm = "") {
   const m = String(hhmm).match(/^(\d{2}):(\d{2})$/);
   if (!m) return "";
@@ -13,15 +18,23 @@ function toTimeslotFromHHMM(hhmm = "") {
   const minutes = Number(m[2]);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return "";
 
-  const startTotal = hours * 60 + Math.floor(minutes / 15) * 15;
-  const endTotal = (startTotal + 15) % (24 * 60);
+  const totalMins = hours * 60 + minutes;
 
-  const startHH = String(Math.floor(startTotal / 60)).padStart(2, "0");
-  const startMM = String(startTotal % 60).padStart(2, "0");
-  const endHH = String(Math.floor(endTotal / 60)).padStart(2, "0");
-  const endMM = String(endTotal % 60).padStart(2, "0");
+  for (const { start, end, interval } of SLOT_SCHEDULE) {
+    if (totalMins >= start && totalMins < end) {
+      const slotIndex = Math.floor((totalMins - start) / interval);
+      const slotStart = start + slotIndex * interval;
+      const slotEnd = slotStart + interval;
+      if (slotEnd > end) return "";
+      const sHH = String(Math.floor(slotStart / 60)).padStart(2, "0");
+      const sMM = String(slotStart % 60).padStart(2, "0");
+      const eHH = String(Math.floor(slotEnd / 60)).padStart(2, "0");
+      const eMM = String(slotEnd % 60).padStart(2, "0");
+      return `${sHH}:${sMM}-${eHH}:${eMM}`;
+    }
+  }
 
-  return `${startHH}:${startMM}-${endHH}:${endMM}`;
+  return "";
 }
 
 function normalizeNumber(v) {
@@ -341,7 +354,7 @@ export default function ManualResult() {
                     })}
                 </select>
                 <div className="text-muted mt-1" style={{ fontSize: 12 }}>
-                  {slotsLoading ? "Loading time slots..." : "15-minute slots for selected date"}
+                  {slotsLoading ? "Loading time slots..." : "Slots for selected date"}
                 </div>
               </div>
 
@@ -394,7 +407,7 @@ export default function ManualResult() {
                 onChange={(e) => applyQuickDateTime(e.target.value)}
               />
               <div className="text-muted mt-1" style={{ fontSize: 12 }}>
-                Pick any date-time to auto-select 15-minute slot
+                Pick any date-time to auto-select slot
               </div>
             </div>
             <div className="text-muted mb-2" style={{ fontSize: 12 }}>

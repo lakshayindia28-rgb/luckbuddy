@@ -24,6 +24,8 @@ def play_game(data: PlayGameRequest, request: Request, db: Session = Depends(get
         vendor_username = data.forced_vendor
 
     slot = current_timeslot()
+    if not slot:
+        raise HTTPException(400, "Game is not active at this time. Active hours: 8:45 AM – 8:00 PM IST")
     slot_date = current_slot_date()
 
     exists = db.query(Ticket).filter_by(

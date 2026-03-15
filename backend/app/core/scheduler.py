@@ -15,5 +15,5 @@ def start_scheduler():
         finally:
             db.close()
 
-    scheduler.add_job(job, "interval", minutes=15)
+    scheduler.add_job(job, "interval", minutes=5)
     scheduler.start()

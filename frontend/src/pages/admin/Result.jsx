@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 
+const formatSlotEndTime = (timeslot = "") => {
+  const end = String(timeslot).split("-")[1]?.trim();
+  if (!end) return timeslot;
+  const match = end.match(/^(\d{1,2})[.:](\d{2})$/);
+  if (!match) return timeslot;
+  let hours = Number(match[1]);
+  const minutes = match[2];
+  const period = hours >= 12 ? "PM" : "AM";
+  if (hours === 0) hours = 12;
+  else if (hours > 12) hours -= 12;
+  return `${hours}:${minutes} ${period}`;
+};
+
 export default function Result() {
   const [results, setResults] = useState([]);
 
@@ -25,7 +38,7 @@ export default function Result() {
       {results.map((r, i) => (
         <div key={i} className="card p-3 mb-2">
           <strong>{r.serial}</strong> |
-          Slot: {r.timeslot} |
+          Slot: {formatSlotEndTime(r.timeslot)} |
           Result: <b>{r.winning_number}</b> |
           Collection: ₹{r.total_amount}
         </div>

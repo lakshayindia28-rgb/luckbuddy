@@ -7,6 +7,19 @@ const SERIALS = ["XA","XB","XC","XD","XE","XF","XG","XH","XI","XJ"];
 
 const todayISO = () => new Date().toLocaleDateString("en-CA");
 
+const formatSlotEndTime = (timeslot = "") => {
+  const end = String(timeslot).split("-")[1]?.trim();
+  if (!end) return timeslot;
+  const match = end.match(/^(\d{1,2})[.:](\d{2})$/);
+  if (!match) return timeslot;
+  let hours = Number(match[1]);
+  const minutes = match[2];
+  const period = hours >= 12 ? "PM" : "AM";
+  if (hours === 0) hours = 12;
+  else if (hours > 12) hours -= 12;
+  return `${hours}:${minutes} ${period}`;
+};
+
 const slotStartToMinutes = (timeslot = "") => {
   const start = String(timeslot).split("-")[0]?.trim() || "";
   const match = start.match(/^(\d{1,2})[.:](\d{2})$/);
@@ -151,7 +164,7 @@ export default function Result() {
               {rows.map((row, i) => (
                 <tr key={i}>
                   <td className="result-date-cell">{row.date ? formatDDMMYY(row.date) : "--"}</td>
-                  <td>{row.timeslot}</td>
+                  <td>{formatSlotEndTime(row.timeslot)}</td>
                   {SERIALS.map(s => (
                     <td key={s} className="result-cell">
                       {row.values[s] == null

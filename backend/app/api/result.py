@@ -299,7 +299,7 @@ def timeslots_for_date(
     slot_date: str,
     db: Session = Depends(get_db),
 ):
-    """Return all 15-min slots for the given IST date, along with publish summary.
+    """Return all scheduled slots for the given IST date, along with publish summary.
 
     The UI needs to show every slot for a date (played or not), and allow manual
     publishing for any slot.
@@ -346,7 +346,6 @@ def timeslots_for_date(
     return {
         "slot_date": slot_date_iso,
         "timezone": "Asia/Kolkata",
-        "minutes": 15,
         "items": items,
     }
 

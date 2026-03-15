@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from zoneinfo import ZoneInfo
 import json
 import urllib.request
@@ -9,25 +9,34 @@ import urllib.request
 IST = ZoneInfo("Asia/Kolkata")
 DEFAULT_TIMESLOT = "09:00-09:15"
 
+# Active schedule in IST: (start_hour, start_min, end_hour, end_min, interval_minutes)
+SLOT_SCHEDULE = [
+    (8, 45, 11, 0, 15),   # 8:45 AM – 11:00 AM : 15-min slots
+    (11, 0, 20, 0, 20),   # 11:00 AM – 8:00 PM : 20-min slots
+]
 
-def timeslots_for_date(slot_date_iso: str, *, minutes: int = 15) -> list[str]:
-    """Return all timeslots for a given date in IST.
 
-    Produces 24h worth of slots in `HH:MM-HH:MM` format at the given interval.
-    Example (minutes=15): 00:00-00:15 ... 23:45-00:00
-    """
+def _all_slots_for_day(day) -> list[tuple[datetime, datetime]]:
+    """Return [(slot_start, slot_end), ...] for one calendar day in IST."""
+    slots: list[tuple[datetime, datetime]] = []
+    for sh, sm, eh, em, interval in SLOT_SCHEDULE:
+        start = datetime.combine(day, dt_time(sh, sm), tzinfo=IST)
+        end = datetime.combine(day, dt_time(eh, em), tzinfo=IST)
+        current = start
+        while current + timedelta(minutes=interval) <= end:
+            slots.append((current, current + timedelta(minutes=interval)))
+            current += timedelta(minutes=interval)
+    return slots
 
+
+def timeslots_for_date(slot_date_iso: str, **_kw) -> list[str]:
+    """Return all timeslots for a given date in IST."""
     try:
         day = datetime.strptime(slot_date_iso, "%Y-%m-%d").date()
     except Exception as e:
         raise ValueError("Invalid slot_date format (expected YYYY-MM-DD)") from e
 
-    start = datetime.combine(day, datetime.min.time()).replace(tzinfo=IST)
-    slots: list[str] = []
-    for i in range(int(24 * 60 / minutes)):
-        dt = start + timedelta(minutes=i * minutes)
-        slots.append(_timeslot_from_dt(dt, minutes=minutes))
-    return slots
+    return [f"{s:%H:%M}-{e:%H:%M}" for s, e in _all_slots_for_day(day)]
 
 
 def ist_now(*, use_internet: bool = True, timeout_seconds: float = 2.0) -> datetime:
@@ -52,22 +61,18 @@ def ist_now(*, use_internet: bool = True, timeout_seconds: float = 2.0) -> datet
     return datetime.now(IST)
 
 
-def _timeslot_from_dt(dt: datetime, *, minutes: int = 15) -> str:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=IST)
-    else:
-        dt = dt.astimezone(IST)
-
-    start = dt.replace(minute=(dt.minute // minutes) * minutes, second=0, microsecond=0)
-    end = start + timedelta(minutes=minutes)
-    return f"{start:%H:%M}-{end:%H:%M}"
-
-
 def current_timeslot(*, use_internet: bool = True) -> str:
-    """Current 15-minute timeslot in IST, formatted like 09:00-09:15."""
+    """Current timeslot in IST based on schedule.
 
+    Returns empty string if current time is outside active hours (8:45 AM – 8:00 PM).
+    """
     try:
-        return _timeslot_from_dt(ist_now(use_internet=use_internet))
+        now = ist_now(use_internet=use_internet)
+        day = now.date()
+        for slot_start, slot_end in _all_slots_for_day(day):
+            if slot_start <= now < slot_end:
+                return f"{slot_start:%H:%M}-{slot_end:%H:%M}"
+        return ""
     except Exception:
         return DEFAULT_TIMESLOT
 
