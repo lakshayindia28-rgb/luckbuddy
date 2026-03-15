@@ -260,11 +260,24 @@
 }
 
 .legacy-marquee {
-  font-family: Arial, Helvetica, sans-serif;
-  color: red;
+  overflow: hidden;
+  white-space: nowrap;
   background-color: #ffe0e0;
-  font-weight: bold;
-  font-size: 18px;
   padding: 7px;
   margin-top: 15px;
+}
+
+.legacy-marquee-text {
+  display: inline-block;
+  padding-left: 100%;
+  animation: marquee-scroll 18s linear infinite;
+  font-family: Arial, Helvetica, sans-serif;
+  color: red;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
 }

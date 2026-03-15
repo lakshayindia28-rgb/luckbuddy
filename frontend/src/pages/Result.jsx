@@ -179,11 +179,13 @@ export default function Result() {
         )}
       </div>
 
-      <marquee className="legacy-marquee" behavior="scroll" direction="left">
-        This website is intended strictly for entertainment purposes only. Any misuse of the content or involvement
-        in illegal usage is prohibited. We are not responsible for any unlawful use or consequences arising from
-        such misuse.
-      </marquee>
+      <div className="legacy-marquee">
+        <span className="legacy-marquee-text">
+          This website is intended strictly for entertainment purposes only. Any misuse of the content or involvement
+          in illegal usage is prohibited. We are not responsible for any unlawful use or consequences arising from
+          such misuse.
+        </span>
+      </div>
 
     </div>
     </div>
