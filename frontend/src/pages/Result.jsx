@@ -88,8 +88,8 @@ export default function Result() {
           if (d !== 0) return d;
           const aMinutes = slotStartToMinutes(a.timeslot);
           const bMinutes = slotStartToMinutes(b.timeslot);
-          if (aMinutes !== bMinutes) return bMinutes - aMinutes;
-          return String(b.timeslot || "").localeCompare(String(a.timeslot || ""));
+          if (aMinutes !== bMinutes) return aMinutes - bMinutes;
+          return String(a.timeslot || "").localeCompare(String(b.timeslot || ""));
         });
 
       setRows(next);
